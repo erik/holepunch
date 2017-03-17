@@ -16,6 +16,7 @@ Options:
 import atexit
 from difflib import SequenceMatcher
 import json
+import signal
 
 import boto3
 import botocore
@@ -63,38 +64,98 @@ def parse_port_ranges(port_strings):
 
         # Single port range
         if len(split) == 1:
-            port = int(split[0])
-            ranges.append((port, port))
+            p1, p2 = int(split[0]), int(split[0])
         elif len(split) == 2:
             p1, p2 = map(int, split)
-            ranges.append((p1, p2))
 
-    print ranges
+        assert p1 <= p2, 'Ports must be correctly ordered'
+        assert all(0 <= p <= 65535 for p in [p1, p2]), 'Ports must be in range'
+        ranges.append((p1, p2))
+
+    return ranges
 
 
-def apply_ingress_rules(group, protocols, port_ranges):
-    print 'Applying rules!', protocols, port_ranges
+# TODO: Need to handle case when one or more of the rules already exists
+def apply_ingress_rules(group, ip_permissions):
+    print('Applying rules!')
+
+    print ec2.authorize_security_group_ingress(**{
+        'GroupId': group['GroupId'],
+        'IpPermissions': ip_permissions,
+    })
 
 
-def revert_ingress_rules(group, protocols, port_ranges):
-    print 'Reverting rules!', protocols, port_ranges
+def revert_ingress_rules(group, ip_permissions):
+    print('Reverting rules!')
+
+    print ec2.revoke_security_group_ingress(**{
+        'GroupId': group['GroupId'],
+        'IpPermissions': ip_permissions,
+    })
+
+
+def confirm(message):
+    resp = raw_input('%s [y/N] ' % message)
+    return resp.lower() in ['yes', 'y']
 
 
 def holepunch(args):
-    print args
-
     group_name = args['SECURITY_GROUP']
     try:
-        group = ec2.describe_security_groups(GroupNames=[group_name])
+        groups = ec2.describe_security_groups(GroupNames=[group_name])
+        assert len(groups['SecurityGroups']) == 1, 'TODO: handle this ambiguity'
+        group = groups['SecurityGroups'][0]
     except botocore.exceptions.ClientError:
         print('Unknown security group: %s' % group_name)
         return find_intended_security_group(group_name)
 
-    port_ranges = parse_port_ranges(args['PORT_RANGE'])
+    if args['--all']:
+        port_ranges = [(0, 65535)]
+    else:
+        port_ranges = parse_port_ranges(args['PORT_RANGE'])
+
+    protocols = set()
+    cidr = get_local_cidr()
+
+    # TODO: Should this include ICMP?
+    if args['--udp']:
+        protocols.add('udp')
+    if args['--tcp']:
+        protocols.add('tcp')
+    # Default to TCP
+    if not (args['--udp'] or args['--tcp']):
+        protocols.add('tcp')
+
+    ip_perms = []
+    for proto in protocols:
+        for from_port, to_port in port_ranges:
+            ip_perms.append({
+                'IpProtocol': proto,
+                'FromPort': from_port,
+                'ToPort': to_port,
+                'IpRanges': [{'CidrIp': cidr}]
+            })
+
+    print('Changes to be made to {group_name} {group_id}:'
+          '\n{hr}\n{perms}\n{hr}'.format(
+              hr='='*60, group_name=group['GroupName'],
+              group_id=group['GroupId'],
+              perms=json.dumps(ip_perms, indent=4)))
+
+    if not confirm('Apply security group ingress?'):
+        print('Okay, aborting...')
+        return
 
     # Ensure that we revert ingress rules when the program exits
-    atexit.register(revert_ingress_rules, group=group, rules={})
-    print json.dumps(group)
+    atexit.register(revert_ingress_rules, group=group, ip_permissions=ip_perms)
+    apply_ingress_rules(group, ip_perms)
+
+    print('Rules applied! Waiting for interrupt...')
+
+    # Just eat the signal
+    signal.signal(signal.SIGINT, lambda _1, _2: None)
+    signal.pause()
+
 
 if __name__ == '__main__':
     args = docopt(__doc__, version='0')
