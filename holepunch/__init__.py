@@ -13,6 +13,8 @@ Options:
   -u --udp               Open UDP ports to ingress.
 '''
 
+from __future__ import print_function
+
 import atexit
 from difflib import SequenceMatcher
 import json
@@ -77,21 +79,25 @@ def parse_port_ranges(port_strings):
 
 # TODO: Need to handle case when one or more of the rules already exists
 def apply_ingress_rules(group, ip_permissions):
-    print('Applying rules!')
+    print('Applying rules... ', end='')
 
-    print ec2.authorize_security_group_ingress(**{
+    ec2.authorize_security_group_ingress(**{
         'GroupId': group['GroupId'],
         'IpPermissions': ip_permissions,
     })
+
+    print('Done')
 
 
 def revert_ingress_rules(group, ip_permissions):
-    print('Reverting rules!')
+    print('Reverting rules... ', end='')
 
-    print ec2.revoke_security_group_ingress(**{
+    ec2.revoke_security_group_ingress(**{
         'GroupId': group['GroupId'],
         'IpPermissions': ip_permissions,
     })
+
+    print('Done')
 
 
 def confirm(message):
@@ -136,7 +142,8 @@ def holepunch(args):
                 'IpRanges': [{'CidrIp': cidr}]
             })
 
-    print('Changes to be made to {group_name} {group_id}:'
+    print('Changes to be made to:'
+          '  - {group_id} - {group_name}'
           '\n{hr}\n{perms}\n{hr}'.format(
               hr='='*60, group_name=group['GroupName'],
               group_id=group['GroupId'],
@@ -150,10 +157,11 @@ def holepunch(args):
     atexit.register(revert_ingress_rules, group=group, ip_permissions=ip_perms)
     apply_ingress_rules(group, ip_perms)
 
-    print('Rules applied! Waiting for interrupt...')
+    print('Ctrl-c to revert')
 
     # Just eat the signal
     signal.signal(signal.SIGINT, lambda _1, _2: None)
+    # Wait until we receive a SIGINT
     signal.pause()
 
 
