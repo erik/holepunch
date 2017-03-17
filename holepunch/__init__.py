@@ -157,6 +157,10 @@ def holepunch(args):
     signal.pause()
 
 
-if __name__ == '__main__':
-    args = docopt(__doc__, version='0')
+def main():
+    args = docopt(__doc__, version='0.0.0')
     holepunch(args)
+
+
+if __name__ == '__main__':
+    main()
