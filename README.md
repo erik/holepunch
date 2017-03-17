@@ -16,6 +16,8 @@ After running `holepunch`, just hit `Ctrl-c` to clear out the modified rules.
 pip install holepunch
 ```
 
+AWS credentials can be set up in any of the places that [Boto3 knows to look.](http://boto3.readthedocs.io/en/latest/guide/configuration.html)
+
 ## Examples
 
 To modify security group `foo_bar` to inbound traffic from this machine's local
