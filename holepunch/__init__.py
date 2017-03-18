@@ -30,6 +30,9 @@ import botocore
 from docopt import docopt
 
 
+__version__ = '0.0.1'
+
+
 ec2 = boto3.client('ec2')
 
 
@@ -186,7 +189,7 @@ def holepunch(args):
 
 
 def main():
-    args = docopt(__doc__, version='0.0.1')
+    args = docopt(__doc__, version=__version__)
     holepunch(args)
 
 

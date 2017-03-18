@@ -1,9 +1,11 @@
 from setuptools import setup
 
+from holepunch import __version__
+
 
 setup(
     name='holepunch',
-    version='0.0.1',
+    version=__version__,
     description="Punch holes in your AWS account security",
     author='Erik Price',
     url='https://github.com/erik/holepunch',
