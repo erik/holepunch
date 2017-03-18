@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='holepunch',
-    version='0.0.0',
+    version='0.0.1',
     description="Punch holes in your AWS account security",
     author='Erik Price',
     url='https://github.com/erik/holepunch',

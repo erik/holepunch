@@ -182,7 +182,7 @@ def holepunch(args):
 
 
 def main():
-    args = docopt(__doc__, version='0.0.0')
+    args = docopt(__doc__, version='0.0.1')
     holepunch(args)
 
 
