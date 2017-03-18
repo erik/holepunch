@@ -135,14 +135,29 @@ def holepunch(args):
     ip_perms = []
     for proto in protocols:
         for from_port, to_port in port_ranges:
-            ip_perms.append({
+            permission = {
                 'IpProtocol': proto,
                 'FromPort': from_port,
                 'ToPort': to_port,
                 'IpRanges': [{'CidrIp': cidr}]
-            })
+            }
 
-    print('Changes to be made to:'
+            # We don't want to (and cannot) duplicate rules
+            matches_existing = [
+                all(existing[key] == val for key, val in permission.items())
+                for existing in group['IpPermissions']
+            ]
+
+            if any(matches_existing):
+                print('Skipping existing permission: %s' % json.dumps(permission))
+            else:
+                ip_perms.append(permission)
+
+    if not ip_perms:
+        print('No changes to make.')
+        return
+
+    print('Changes to be made to:\n'
           '  - {group_id} - {group_name}'
           '\n{hr}\n{perms}\n{hr}'.format(
               hr='='*60, group_name=group['GroupName'],
