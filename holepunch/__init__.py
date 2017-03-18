@@ -1,16 +1,20 @@
 '''Punches holes in your security.
 
 Usage:
-  holepunch  [--tcp | --udp] [--cidr=<custom_cidr>] SECURITY_GROUP (PORT_RANGE... | --all)
+  holepunch [--tcp --udp] [--cidr=<addr>] GROUP (PORTS... | --all)
   holepunch (-h | --help)
 
+Arguments:
+  GROUP    Name of EC2 security group to modify.
+  PORTS    List of ports or port ranges (e.g. 8080-8082) to open.
+
 Options:
-  -h --help              Show this screen.
-  --cidr=<custom_cidr>   CIDR expression to apply rules to [defaults to this
-                         machine's ip/32]
-  --all                  Open ports 0-65535.
-  -t --tcp               Open TCP ports to ingress.
-  -u --udp               Open UDP ports to ingress.
+  -h --help         Show this screen.
+  --cidr=<addr>     Address range in CIDR notation to open specified ports to
+                    [defaults to external_ip/32]
+  --all             Open ports 0-65535.
+  -t --tcp          Open TCP ports to ingress [default].
+  -u --udp          Open UDP ports to ingress.
 '''
 
 from __future__ import print_function
@@ -107,7 +111,7 @@ def confirm(message):
 
 
 def holepunch(args):
-    group_name = args['SECURITY_GROUP']
+    group_name = args['GROUP']
     try:
         groups = ec2.describe_security_groups(GroupNames=[group_name])
         assert len(groups['SecurityGroups']) == 1, 'TODO: handle this ambiguity'
@@ -119,10 +123,10 @@ def holepunch(args):
     if args['--all']:
         port_ranges = [(0, 65535)]
     else:
-        port_ranges = parse_port_ranges(args['PORT_RANGE'])
+        port_ranges = parse_port_ranges(args['PORTS'])
 
     protocols = set()
-    cidr = get_local_cidr()
+    cidr = args['--cidr'] or get_local_cidr()
 
     # TODO: Should this include ICMP?
     if args['--udp']:
