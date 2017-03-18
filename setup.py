@@ -17,6 +17,5 @@ setup(
     install_requires=[
         'boto3==1.4.4',
         'docopt==0.6.2',
-        'ipgetter==0.6',
     ]
 )

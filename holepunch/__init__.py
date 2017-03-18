@@ -19,11 +19,11 @@ import atexit
 from difflib import SequenceMatcher
 import json
 import signal
+import urllib2
 
 import boto3
 import botocore
 from docopt import docopt
-import ipgetter
 
 
 ec2 = boto3.client('ec2')
@@ -51,7 +51,8 @@ def find_intended_security_group(group_name):
 
 # TODO: There's probably more nuance to this.
 def get_local_cidr():
-    return '%s/32' % ipgetter.myip()
+    external_ip = urllib2.urlopen("http://icanhazip.com").read().strip()
+    return '%s/32' % external_ip
 
 
 def parse_port_ranges(port_strings):
