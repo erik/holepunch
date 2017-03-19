@@ -30,13 +30,14 @@ import botocore
 from docopt import docopt
 
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 
 
 ec2 = boto3.client('ec2')
 
 
 def find_intended_security_group(group_name):
+    '''If there's a typo, try to return the intended security group name'''
     grps = ec2.describe_security_groups()['SecurityGroups']
 
     if not len(grps):
@@ -85,7 +86,6 @@ def parse_port_ranges(port_strings):
     return ranges
 
 
-# TODO: Need to handle case when one or more of the rules already exists
 def apply_ingress_rules(group, ip_permissions):
     print('Applying rules... ', end='')
 
@@ -136,8 +136,9 @@ def holepunch(args):
         protocols.add('udp')
     if args['--tcp']:
         protocols.add('tcp')
+
     # Default to TCP
-    if not (args['--udp'] or args['--tcp']):
+    if not protocols:
         protocols.add('tcp')
 
     ip_perms = []
