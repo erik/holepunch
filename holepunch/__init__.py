@@ -54,7 +54,7 @@ def find_intended_security_group(group_name):
     if score < 0.35:
         return
 
-    print('\nDid you mean: %s [%f]?' % (best_match['GroupName'], score))
+    print('\nDid you mean: %s?' % best_match['GroupName'])
 
 
 # TODO: There's probably more nuance to this.
