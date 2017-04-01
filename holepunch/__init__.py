@@ -29,8 +29,7 @@ import boto3
 import botocore
 from docopt import docopt
 
-
-__version__ = '0.0.2'
+from holepunch.version import __version__
 
 
 ec2 = boto3.client('ec2')

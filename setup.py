@@ -1,6 +1,9 @@
 from setuptools import setup
 
-from holepunch import __version__
+
+# Define __version__
+with open('holepunch/version.py', 'r') as fp:
+    exec(fp.read())
 
 
 setup(
