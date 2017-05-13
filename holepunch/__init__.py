@@ -1,7 +1,7 @@
 '''Punches holes in your security.
 
 Usage:
-  holepunch [--tcp --udp] [--cidr=<addr>] GROUP (PORTS... | --all)
+  holepunch [--tcp --udp] [--cidr=<addr>] [--yes] GROUP (PORTS... | --all)
   holepunch (-h | --help)
 
 Arguments:
@@ -15,6 +15,7 @@ Options:
   --all             Open ports 0-65535.
   -t --tcp          Open TCP ports to ingress [default].
   -u --udp          Open UDP ports to ingress.
+  -y --yes          Don't prompt before writing rules.
 '''
 
 from __future__ import print_function
@@ -172,7 +173,7 @@ def holepunch(args):
               group_id=group['GroupId'],
               perms=json.dumps(ip_perms, indent=4)))
 
-    if not confirm('Apply security group ingress?'):
+    if not args['--yes'] and not confirm('Apply security group ingress?'):
         print('Okay, aborting...')
         return
 
