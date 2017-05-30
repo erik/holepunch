@@ -75,9 +75,9 @@ def parse_port_ranges(port_strings):
 
         # Single port range
         if len(split) == 1:
-            p1, p2 = int(split[0]), int(split[0])
+            (p1, p2) = (split[0], split[0])
         elif len(split) == 2:
-            p1, p2 = map(int, split)
+            (p1, p2) = split
 
         assert p1 <= p2, 'Ports must be correctly ordered'
         assert all(0 <= p <= 65535 for p in [p1, p2]), 'Ports must be in range'
