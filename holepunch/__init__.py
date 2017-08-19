@@ -59,7 +59,8 @@ def find_intended_security_group(group_name):
 
 # TODO: There's probably more nuance to this.
 def get_local_cidr():
-    external_ip = urllib2.urlopen("http://icanhazip.com").read().strip()
+    # AWS VPCs don't support IPv6 (wtf...) so force IPv4
+    external_ip = urllib2.urlopen("http://ipv4.icanhazip.com").read().strip()
     return '%s/32' % external_ip
 
 
