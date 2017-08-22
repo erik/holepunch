@@ -199,9 +199,12 @@ def holepunch(args):
 
     print('Ctrl-c to revert')
 
-    # Just eat the signal
-    signal.signal(signal.SIGINT, lambda _1, _2: None)
-    # Wait until we receive a SIGINT
+    # Make sure we have a chance to clean up the security group rules gracefully
+    # by ignoring common signals.
+    for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
+        signal.signal(sig, lambda _1, _2: None)
+
+    # Sleep until we receive a SIGINT
     signal.pause()
 
 
