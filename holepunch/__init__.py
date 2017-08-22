@@ -170,7 +170,7 @@ def holepunch(args):
 
             # We don't want to (and cannot) duplicate rules
             matches_existing = [
-                all(existing[key] == val for key, val in permission.items())
+                all(existing.get(key) == val for key, val in permission.items())
                 for existing in group['IpPermissions']
             ]
 
