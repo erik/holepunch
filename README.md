@@ -20,11 +20,17 @@ AWS credentials can be set up in any of the places that [Boto3 knows to look.](h
 
 ## Examples
 
-To modify security group `foo_bar` to permit inbound traffic from this machine to 
+To modify security group `foo_bar` to permit inbound traffic from this machine to
 TCP port 22 (ssh):
 
 ```
 holepunch foo_bar 22 --tcp
+```
+
+Modifying a security group using its id also works:
+
+```
+holepunch sg-62153838 443 --tcp
 ```
 
 Adding multiple TCP port ranges:
