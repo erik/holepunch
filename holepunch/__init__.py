@@ -5,7 +5,7 @@ Usage:
   holepunch (-h | --help)
 
 Arguments:
-  GROUP    Name of EC2 security group to modify.
+  GROUP    Name or group id of security group to modify.
   PORTS    List of ports or port ranges (e.g. 8080-8082) to open.
 
 Options:
@@ -27,7 +27,6 @@ import signal
 import urllib2
 
 import boto3
-import botocore
 from docopt import docopt
 
 from holepunch.version import __version__
@@ -116,13 +115,30 @@ def confirm(message):
 
 def holepunch(args):
     group_name = args['GROUP']
-    try:
-        groups = ec2.describe_security_groups(GroupNames=[group_name])
-        assert len(groups['SecurityGroups']) == 1, 'TODO: handle this ambiguity'
-        group = groups['SecurityGroups'][0]
-    except botocore.exceptions.ClientError:
+
+    groups = []
+
+    # Try to lookup based on group name and group id
+    for filter_name in ['group-name', 'group-id']:
+        matches = ec2.describe_security_groups(Filters=[{
+            'Name': filter_name,
+            'Values': [group_name]
+        }])
+
+        groups.extend(matches['SecurityGroups'])
+
+    if not groups:
         print('Unknown security group: %s' % group_name)
         return find_intended_security_group(group_name)
+
+    elif len(groups) > 1:
+        print('More than one group matches "%s", use group id instead' %
+              group_name)
+        for grp in groups:
+            print('- %s %s' % (grp['GroupId'], grp['GroupName']))
+        return
+
+    group = groups[0]
 
     if args['--all']:
         port_ranges = [(0, 65535)]
@@ -154,7 +170,7 @@ def holepunch(args):
 
             # We don't want to (and cannot) duplicate rules
             matches_existing = [
-                all(existing[key] == val for key, val in permission.items())
+                all(existing.get(key) == val for key, val in permission.items())
                 for existing in group['IpPermissions']
             ]
 
@@ -167,8 +183,7 @@ def holepunch(args):
         print('No changes to make.')
         return
 
-    print('Changes to be made to:\n'
-          '  - {group_id} - {group_name}'
+    print('Changes to be made to: {group_name} [{group_id}]'
           '\n{hr}\n{perms}\n{hr}'.format(
               hr='='*60, group_name=group['GroupName'],
               group_id=group['GroupId'],
