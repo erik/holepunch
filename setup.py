@@ -20,7 +20,7 @@ setup(
     },
     license='MIT',
     install_requires=[
-        'boto3==1.4.4',
+        'boto3==1.4.7',
         'docopt==0.6.2',
     ]
 )
