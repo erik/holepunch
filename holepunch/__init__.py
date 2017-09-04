@@ -179,7 +179,7 @@ def holepunch(args):
             else:
                 # Apply the comment field after checking for matching groups.
                 permission.update({
-                    'Documentation': args['--comment']
+                    'Description': args['--comment']
                 })
 
                 ip_perms.append(permission)
