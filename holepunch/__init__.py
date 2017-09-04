@@ -165,23 +165,29 @@ def holepunch(args):
                 'IpProtocol': proto,
                 'FromPort': from_port,
                 'ToPort': to_port,
-                'IpRanges': [{'CidrIp': cidr}]
+                'IpRanges': [{
+                    'CidrIp': cidr,
+                    'Description': args['--comment']
+                }]
             }
 
             # We don't want to (and cannot) duplicate rules
-            matches_existing = [
-                all(existing.get(key) == val for key, val in permission.items())
-                for existing in group['IpPermissions']
-            ]
+            for perm in group['IpPermissions']:
 
-            if any(matches_existing):
-                print('Skipping existing permission: %s' % json.dumps(permission))
+                # These keys are checked for simple equality, if they're not
+                # all the same no need to check IpRanges.
+                keys = ['IpProtocol', 'FromPort', 'ToPort']
+
+                if not all(perm.get(k) == permission[k] for k in keys):
+                    continue
+
+                # For IpRanges, we need to ignore the Description and check if
+                # the CidrIp is the same.
+                if any(ip['CidrIp'] == cidr for ip in perm.get('IpRanges', [])):
+                    print('Skipping existing permission: %s' % json.dumps(permission))
+                    break
+
             else:
-                # Apply the comment field after checking for matching groups.
-                permission.update({
-                    'Description': args['--comment']
-                })
-
                 ip_perms.append(permission)
 
     if not ip_perms:
