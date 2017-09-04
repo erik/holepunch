@@ -1,7 +1,7 @@
 '''Punches holes in your security.
 
 Usage:
-  holepunch [--tcp --udp] [--cidr=<addr>] [--yes] GROUP (PORTS... | --all)
+  holepunch [options] GROUP (PORTS... | --all)
   holepunch (-h | --help)
 
 Arguments:
@@ -9,13 +9,13 @@ Arguments:
   PORTS    List of ports or port ranges (e.g. 8080-8082) to open.
 
 Options:
-  -h --help         Show this screen.
-  --cidr=<addr>     Address range in CIDR notation to open specified ports to
-                    [defaults to external_ip/32]
-  --all             Open ports 0-65535.
-  -t --tcp          Open TCP ports to ingress [default].
-  -u --udp          Open UDP ports to ingress.
-  -y --yes          Don't prompt before writing rules.
+  --all              Open ports 0-65535.
+  -c --comment=TEXT  Description of security group ingress [default: holepunch].
+  --cidr ADDR        Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
+  -h --help          Show this screen.
+  -t --tcp           Open TCP ports to ingress [default].
+  -u --udp           Open UDP ports to ingress.
+  -y --yes           Don't prompt before writing rules.
 '''
 
 from __future__ import print_function
@@ -91,7 +91,7 @@ def apply_ingress_rules(group, ip_permissions):
 
     ec2.authorize_security_group_ingress(**{
         'GroupId': group['GroupId'],
-        'IpPermissions': ip_permissions,
+        'IpPermissions': ip_permissions
     })
 
     print('Done')
@@ -165,17 +165,28 @@ def holepunch(args):
                 'IpProtocol': proto,
                 'FromPort': from_port,
                 'ToPort': to_port,
-                'IpRanges': [{'CidrIp': cidr}]
+                'IpRanges': [{
+                    'CidrIp': cidr,
+                    'Description': args['--comment']
+                }]
             }
 
             # We don't want to (and cannot) duplicate rules
-            matches_existing = [
-                all(existing.get(key) == val for key, val in permission.items())
-                for existing in group['IpPermissions']
-            ]
+            for perm in group['IpPermissions']:
 
-            if any(matches_existing):
-                print('Skipping existing permission: %s' % json.dumps(permission))
+                # These keys are checked for simple equality, if they're not
+                # all the same no need to check IpRanges.
+                keys = ['IpProtocol', 'FromPort', 'ToPort']
+
+                if not all(perm.get(k) == permission[k] for k in keys):
+                    continue
+
+                # For IpRanges, we need to ignore the Description and check if
+                # the CidrIp is the same.
+                if any(ip['CidrIp'] == cidr for ip in perm.get('IpRanges', [])):
+                    print('Skipping existing permission: %s' % json.dumps(permission))
+                    break
+
             else:
                 ip_perms.append(permission)
 
