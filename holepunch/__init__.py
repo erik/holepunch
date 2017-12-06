@@ -83,7 +83,7 @@ def parse_port_ranges(port_strings):
         split = list(map(int, s.split('-')))
 
         if len(split) not in [1, 2]:
-            raise ValueError('Expected single port or port range (e.g `80`, `8080-8082`)')
+            raise ValueError('Expected port or port range (e.g `80`, `8080-8082`)')
 
         # Single port, convert to range, e.g. 80 -> 80-80
         if len(split) == 1:
