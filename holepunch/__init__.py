@@ -13,6 +13,7 @@ Options:
   -c --comment=TEXT  Description of security group ingress [default: holepunch].
   --cidr ADDR        Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
   -h --help          Show this screen.
+  -p --profile=NAME  Use a specific AWS profile, equivalent to setting `AWS_PROFILE=NAME`
   -t --tcp           Open TCP ports to ingress [default].
   -u --udp           Open UDP ports to ingress.
   -y --yes           Don't prompt before writing rules.
@@ -24,7 +25,13 @@ import atexit
 from difflib import SequenceMatcher
 import json
 import signal
-import urllib2
+
+try:
+    # For Python 3.0 and later
+    from urllib.request import urlopen
+except ImportError:
+    # Fall back to Python 2's urllib2
+    from urllib2 import urlopen
 
 import boto3
 from docopt import docopt
@@ -32,21 +39,27 @@ from docopt import docopt
 from holepunch.version import __version__
 
 
-ec2 = boto3.client('ec2')
+# Hack for Python2
+try:
+    input = raw_input
+except NameError:
+    pass
 
 
-def find_intended_security_group(group_name):
+def find_intended_security_group(ec2_client, group_name):
     '''If there's a typo, try to return the intended security group name'''
-    grps = ec2.describe_security_groups()['SecurityGroups']
+    grps = ec2_client.describe_security_groups()['SecurityGroups']
 
     if not len(grps):
         return
 
-    distances = sorted([
-        (SequenceMatcher(None, group_name, grp['GroupName']).ratio(), grp)
+    scores = [
+        SequenceMatcher(None, group_name, grp['GroupName']).ratio()
         for grp in grps
-    ])
+    ]
 
+    # Find the closest match
+    distances = sorted(zip(scores, grps), key=lambda tpl: tpl[0])
     score, best_match = distances[-1]
 
     # TODO: Tune this.
@@ -59,7 +72,7 @@ def find_intended_security_group(group_name):
 # TODO: There's probably more nuance to this.
 def get_local_cidr():
     # AWS VPCs don't support IPv6 (wtf...) so force IPv4
-    external_ip = urllib2.urlopen("http://ipv4.icanhazip.com").read().strip()
+    external_ip = urlopen("http://ipv4.icanhazip.com").read().strip().decode('utf-8')
     return '%s/32' % external_ip
 
 
@@ -67,29 +80,33 @@ def parse_port_ranges(port_strings):
     ranges = []
 
     for s in port_strings:
-        # TODO: handle int parse ValueErrors
-        split = map(int, s.split('-'))
+        split = list(map(int, s.split('-')))
 
-        # TODO: fail more sanely here
-        assert len(split) in [1, 2]
+        if len(split) not in [1, 2]:
+            raise ValueError('Expected port or port range (e.g `80`, `8080-8082`)')
 
-        # Single port range
+        # Single port, convert to range, e.g. 80 -> 80-80
         if len(split) == 1:
             (p1, p2) = (split[0], split[0])
+
         elif len(split) == 2:
             (p1, p2) = split
 
-        assert p1 <= p2, 'Ports must be correctly ordered'
-        assert all(0 <= p <= 65535 for p in [p1, p2]), 'Ports must be in range'
+        if p1 > p2:
+            raise ValueError('Port range must be ordered from low to high')
+
+        if not all(0 <= p <= 65535 for p in [p1, p2]):
+            raise ValueError('Ports must be in range 0-65535')
+
         ranges.append((p1, p2))
 
     return ranges
 
 
-def apply_ingress_rules(group, ip_permissions):
+def apply_ingress_rules(ec2_client, group, ip_permissions):
     print('Applying rules... ', end='')
 
-    ec2.authorize_security_group_ingress(**{
+    ec2_client.authorize_security_group_ingress(**{
         'GroupId': group['GroupId'],
         'IpPermissions': ip_permissions
     })
@@ -97,10 +114,10 @@ def apply_ingress_rules(group, ip_permissions):
     print('Done')
 
 
-def revert_ingress_rules(group, ip_permissions):
+def revert_ingress_rules(ec2_client, group, ip_permissions):
     print('Reverting rules... ', end='')
 
-    ec2.revoke_security_group_ingress(**{
+    ec2_client.revoke_security_group_ingress(**{
         'GroupId': group['GroupId'],
         'IpPermissions': ip_permissions,
     })
@@ -109,18 +126,23 @@ def revert_ingress_rules(group, ip_permissions):
 
 
 def confirm(message):
-    resp = raw_input('%s [y/N] ' % message)
+    resp = input('%s [y/N] ' % message)
     return resp.lower() in ['yes', 'y']
 
 
 def holepunch(args):
     group_name = args['GROUP']
 
+    profile_name = args['--profile']
+
+    boto_session = boto3.session.Session(profile_name=profile_name)
+    ec2_client = boto_session.client('ec2')
+
     groups = []
 
     # Try to lookup based on group name and group id
     for filter_name in ['group-name', 'group-id']:
-        matches = ec2.describe_security_groups(Filters=[{
+        matches = ec2_client.describe_security_groups(Filters=[{
             'Name': filter_name,
             'Values': [group_name]
         }])
@@ -129,7 +151,7 @@ def holepunch(args):
 
     if not groups:
         print('Unknown security group: %s' % group_name)
-        return find_intended_security_group(group_name)
+        return find_intended_security_group(ec2_client, group_name)
 
     elif len(groups) > 1:
         print('More than one group matches "%s", use group id instead' %
@@ -143,7 +165,11 @@ def holepunch(args):
     if args['--all']:
         port_ranges = [(0, 65535)]
     else:
-        port_ranges = parse_port_ranges(args['PORTS'])
+        try:
+            port_ranges = parse_port_ranges(args['PORTS'])
+        except ValueError as exc:
+            print('invalid port range: %s' % exc)
+            return
 
     protocols = set()
     cidr = args['--cidr'] or get_local_cidr()
@@ -205,8 +231,9 @@ def holepunch(args):
         return
 
     # Ensure that we revert ingress rules when the program exits
-    atexit.register(revert_ingress_rules, group=group, ip_permissions=ip_perms)
-    apply_ingress_rules(group, ip_perms)
+    atexit.register(revert_ingress_rules, ec2_client=ec2_client, group=group,
+                    ip_permissions=ip_perms)
+    apply_ingress_rules(ec2_client, group, ip_perms)
 
     print('Ctrl-c to revert')
 
