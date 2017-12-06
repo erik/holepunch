@@ -116,8 +116,8 @@ def holepunch(args):
 
     profile_name = args['--profile']
 
-    boto_session = boto3.session(profile_name=profile_name)
-    ec2_client = boto_session.resource('ec2')
+    boto_session = boto3.session.Session(profile_name=profile_name)
+    ec2_client = boto_session.client('ec2')
 
     groups = []
 
