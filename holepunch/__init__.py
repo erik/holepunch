@@ -25,12 +25,25 @@ import atexit
 from difflib import SequenceMatcher
 import json
 import signal
-import urllib2
+
+try:
+    # For Python 3.0 and later
+    from urllib.request import urlopen
+except ImportError:
+    # Fall back to Python 2's urllib2
+    from urllib2 import urlopen
 
 import boto3
 from docopt import docopt
 
 from holepunch.version import __version__
+
+
+# Hack for Python2
+try:
+    input = raw_input
+except NameError:
+    pass
 
 
 def find_intended_security_group(ec2_client, group_name):
@@ -40,11 +53,13 @@ def find_intended_security_group(ec2_client, group_name):
     if not len(grps):
         return
 
-    distances = sorted([
-        (SequenceMatcher(None, group_name, grp['GroupName']).ratio(), grp)
+    scores = [
+        SequenceMatcher(None, group_name, grp['GroupName']).ratio()
         for grp in grps
-    ])
+    ]
 
+    # Find the closest match
+    distances = sorted(zip(scores, grps), key=lambda tpl: tpl[0])
     score, best_match = distances[-1]
 
     # TODO: Tune this.
@@ -57,7 +72,7 @@ def find_intended_security_group(ec2_client, group_name):
 # TODO: There's probably more nuance to this.
 def get_local_cidr():
     # AWS VPCs don't support IPv6 (wtf...) so force IPv4
-    external_ip = urllib2.urlopen("http://ipv4.icanhazip.com").read().strip()
+    external_ip = urlopen("http://ipv4.icanhazip.com").read().strip().decode('utf-8')
     return '%s/32' % external_ip
 
 
@@ -66,7 +81,7 @@ def parse_port_ranges(port_strings):
 
     for s in port_strings:
         # TODO: handle int parse ValueErrors
-        split = map(int, s.split('-'))
+        split = list(map(int, s.split('-')))
 
         # TODO: fail more sanely here
         assert len(split) in [1, 2]
@@ -107,7 +122,7 @@ def revert_ingress_rules(ec2_client, group, ip_permissions):
 
 
 def confirm(message):
-    resp = raw_input('%s [y/N] ' % message)
+    resp = input('%s [y/N] ' % message)
     return resp.lower() in ['yes', 'y']
 
 
