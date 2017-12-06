@@ -80,20 +80,24 @@ def parse_port_ranges(port_strings):
     ranges = []
 
     for s in port_strings:
-        # TODO: handle int parse ValueErrors
         split = list(map(int, s.split('-')))
 
-        # TODO: fail more sanely here
-        assert len(split) in [1, 2]
+        if len(split) not in [1, 2]:
+            raise ValueError('Expected single port or port range (e.g `80`, `8080-8082`)')
 
-        # Single port range
+        # Single port, convert to range, e.g. 80 -> 80-80
         if len(split) == 1:
             (p1, p2) = (split[0], split[0])
+
         elif len(split) == 2:
             (p1, p2) = split
 
-        assert p1 <= p2, 'Ports must be correctly ordered'
-        assert all(0 <= p <= 65535 for p in [p1, p2]), 'Ports must be in range'
+        if p1 > p2:
+            raise ValueError('Port range must be ordered from low to high')
+
+        if not all(0 <= p <= 65535 for p in [p1, p2]):
+            raise ValueError('Ports must be in range 0-65535')
+
         ranges.append((p1, p2))
 
     return ranges
@@ -161,7 +165,11 @@ def holepunch(args):
     if args['--all']:
         port_ranges = [(0, 65535)]
     else:
-        port_ranges = parse_port_ranges(args['PORTS'])
+        try:
+            port_ranges = parse_port_ranges(args['PORTS'])
+        except ValueError as exc:
+            print('invalid port range: %s' % exc)
+            return
 
     protocols = set()
     cidr = args['--cidr'] or get_local_cidr()
