@@ -13,6 +13,7 @@ Options:
   -c --comment=TEXT  Description of security group ingress [default: holepunch].
   --cidr ADDR        Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
   -h --help          Show this screen.
+  -p --profile=NAME  Use a specific AWS profile, equivalent to setting `AWS_PROFILE=NAME`
   -t --tcp           Open TCP ports to ingress [default].
   -u --udp           Open UDP ports to ingress.
   -y --yes           Don't prompt before writing rules.
@@ -32,12 +33,9 @@ from docopt import docopt
 from holepunch.version import __version__
 
 
-ec2 = boto3.client('ec2')
-
-
-def find_intended_security_group(group_name):
+def find_intended_security_group(ec2_client, group_name):
     '''If there's a typo, try to return the intended security group name'''
-    grps = ec2.describe_security_groups()['SecurityGroups']
+    grps = ec2_client.describe_security_groups()['SecurityGroups']
 
     if not len(grps):
         return
@@ -86,10 +84,10 @@ def parse_port_ranges(port_strings):
     return ranges
 
 
-def apply_ingress_rules(group, ip_permissions):
+def apply_ingress_rules(ec2_client, group, ip_permissions):
     print('Applying rules... ', end='')
 
-    ec2.authorize_security_group_ingress(**{
+    ec2_client.authorize_security_group_ingress(**{
         'GroupId': group['GroupId'],
         'IpPermissions': ip_permissions
     })
@@ -97,10 +95,10 @@ def apply_ingress_rules(group, ip_permissions):
     print('Done')
 
 
-def revert_ingress_rules(group, ip_permissions):
+def revert_ingress_rules(ec2_client, group, ip_permissions):
     print('Reverting rules... ', end='')
 
-    ec2.revoke_security_group_ingress(**{
+    ec2_client.revoke_security_group_ingress(**{
         'GroupId': group['GroupId'],
         'IpPermissions': ip_permissions,
     })
@@ -116,11 +114,16 @@ def confirm(message):
 def holepunch(args):
     group_name = args['GROUP']
 
+    profile_name = args['--profile']
+
+    boto_session = boto3.session(profile_name=profile_name)
+    ec2_client = boto_session.resource('ec2')
+
     groups = []
 
     # Try to lookup based on group name and group id
     for filter_name in ['group-name', 'group-id']:
-        matches = ec2.describe_security_groups(Filters=[{
+        matches = ec2_client.describe_security_groups(Filters=[{
             'Name': filter_name,
             'Values': [group_name]
         }])
@@ -129,7 +132,7 @@ def holepunch(args):
 
     if not groups:
         print('Unknown security group: %s' % group_name)
-        return find_intended_security_group(group_name)
+        return find_intended_security_group(ec2_client, group_name)
 
     elif len(groups) > 1:
         print('More than one group matches "%s", use group id instead' %
@@ -205,8 +208,9 @@ def holepunch(args):
         return
 
     # Ensure that we revert ingress rules when the program exits
-    atexit.register(revert_ingress_rules, group=group, ip_permissions=ip_perms)
-    apply_ingress_rules(group, ip_perms)
+    atexit.register(revert_ingress_rules, ec2_client=ec2_client, group=group,
+                    ip_permissions=ip_perms)
+    apply_ingress_rules(ec2_client, group, ip_perms)
 
     print('Ctrl-c to revert')
 
