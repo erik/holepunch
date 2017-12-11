@@ -115,8 +115,13 @@ def apply_ingress_rules(ec2_client, group, ip_permissions):
     print('Done')
 
 
-def revert_ingress_rules(ec2_client, group, ip_permissions):
+def revert_ingress_rules(boto_args, group, ip_permissions):
     print('Reverting rules... ', end='')
+
+    # Create a new boto session instead of reusing existing one, which
+    # may have expired while we were asleep.
+    boto_session = boto3.session.Session(**boto_args)
+    ec2_client = boto_session.client('ec2')
 
     ec2_client.revoke_security_group_ingress(**{
         'GroupId': group['GroupId'],
@@ -239,7 +244,9 @@ def holepunch(args):
         return
 
     # Ensure that we revert ingress rules when the program exits
-    atexit.register(revert_ingress_rules, ec2_client=ec2_client, group=group,
+    atexit.register(revert_ingress_rules,
+                    boto_args={'profile_name': profile_name},
+                    group=group,
                     ip_permissions=to_remove)
 
     if ip_perms:
