@@ -14,7 +14,7 @@ Options:
   --cidr ADDR           Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
   -h --help             Show this screen.
   -p --profile=NAME     Use a specific AWS profile, equivalent to setting `AWS_PROFILE=NAME`
-  -r --remove-existing  Remove rules even if they weren't created by holepunch.
+  -r --remove-existing  Remove ingress rules at exit even if they weren't created by holepunch.
   -t --tcp              Open TCP ports to ingress [default].
   -u --udp              Open UDP ports to ingress.
   -y --yes              Don't prompt before writing rules.
