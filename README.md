@@ -10,8 +10,8 @@ rules will be reverted when you are done.
 
 After running `holepunch`, just hit `Ctrl-c` to clear out the modified rules.
 
-By default, `holepunch` will refuse to remove rules that it didn't create. This
-can be toggled with the `--remove-existing` flag.
+By default, `holepunch` will refuse to remove rules that existed before it
+was run. This can be toggled with the `--remove-existing` flag.
 
 ## Installation
 
