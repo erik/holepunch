@@ -9,14 +9,15 @@ Arguments:
   PORTS    List of ports or port ranges (e.g. 8080-8082) to open.
 
 Options:
-  --all              Open ports 0-65535.
-  -c --comment=TEXT  Description of security group ingress [default: holepunch].
-  --cidr ADDR        Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
-  -h --help          Show this screen.
-  -p --profile=NAME  Use a specific AWS profile, equivalent to setting `AWS_PROFILE=NAME`
-  -t --tcp           Open TCP ports to ingress [default].
-  -u --udp           Open UDP ports to ingress.
-  -y --yes           Don't prompt before writing rules.
+  --all                 Open ports 0-65535.
+  -c --comment=TEXT     Description of security group ingress [default: holepunch].
+  --cidr ADDR           Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
+  -h --help             Show this screen.
+  -p --profile=NAME     Use a specific AWS profile, equivalent to setting `AWS_PROFILE=NAME`
+  -r --remove-existing  Remove ingress rules at exit even if they weren't created by holepunch.
+  -t --tcp              Open TCP ports to ingress [default].
+  -u --udp              Open UDP ports to ingress.
+  -y --yes              Don't prompt before writing rules.
 '''
 
 from __future__ import print_function
@@ -114,8 +115,13 @@ def apply_ingress_rules(ec2_client, group, ip_permissions):
     print('Done')
 
 
-def revert_ingress_rules(ec2_client, group, ip_permissions):
+def revert_ingress_rules(boto_args, group, ip_permissions):
     print('Reverting rules... ', end='')
+
+    # Create a new boto session instead of reusing existing one, which
+    # may have expired while we were asleep.
+    boto_session = boto3.session.Session(**boto_args)
+    ec2_client = boto_session.client('ec2')
 
     ec2_client.revoke_security_group_ingress(**{
         'GroupId': group['GroupId'],
@@ -185,6 +191,8 @@ def holepunch(args):
         protocols.add('tcp')
 
     ip_perms = []
+    existing_perms = []
+
     for proto in protocols:
         for from_port, to_port in port_ranges:
             permission = {
@@ -210,13 +218,18 @@ def holepunch(args):
                 # For IpRanges, we need to ignore the Description and check if
                 # the CidrIp is the same.
                 if any(ip['CidrIp'] == cidr for ip in perm.get('IpRanges', [])):
-                    print('Skipping existing permission: %s' % json.dumps(permission))
+                    existing_perms.append(permission)
+                    print('Not adding existing permission: %s' % json.dumps(permission))
                     break
 
             else:
                 ip_perms.append(permission)
 
-    if not ip_perms:
+    to_remove = ip_perms.copy()
+    if args['--remove-existing']:
+        to_remove.extend(existing_perms)
+
+    if not ip_perms and not to_remove:
         print('No changes to make.')
         return
 
@@ -231,9 +244,13 @@ def holepunch(args):
         return
 
     # Ensure that we revert ingress rules when the program exits
-    atexit.register(revert_ingress_rules, ec2_client=ec2_client, group=group,
-                    ip_permissions=ip_perms)
-    apply_ingress_rules(ec2_client, group, ip_perms)
+    atexit.register(revert_ingress_rules,
+                    boto_args={'profile_name': profile_name},
+                    group=group,
+                    ip_permissions=to_remove)
+
+    if ip_perms:
+        apply_ingress_rules(ec2_client, group, ip_perms)
 
     print('Ctrl-c to revert')
 

@@ -10,6 +10,9 @@ rules will be reverted when you are done.
 
 After running `holepunch`, just hit `Ctrl-c` to clear out the modified rules.
 
+By default, `holepunch` will refuse to remove rules that existed before it
+was run. This can be toggled with the `--remove-existing` flag.
+
 ## Installation
 
 ```
@@ -20,8 +23,8 @@ AWS credentials can be set up in any of the places that [Boto3 knows to look.](h
 
 ## Examples
 
-To modify security group `foo_bar` to permit inbound traffic from this machine to
-TCP port 22 (ssh):
+To modify security group `foo_bar` to permit inbound traffic from this
+machine to TCP port 22 (ssh):
 
 ```
 holepunch foo_bar 22 --tcp
