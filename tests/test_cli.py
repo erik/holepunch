@@ -69,3 +69,84 @@ def test_find_matching_security_groups():
             'Name': filter_name,
             'Values': ['foo']
         }])
+
+
+class TestBuildIngressPermissions:
+    def test_adding_ips(self):
+        sg_permissions = [
+            dict(zip(['IpProtocol', 'FromPort', 'ToPort', 'IpRanges'], vals))
+            for vals in [
+                    ('tcp', 90, 90, [{'CidrIp': '0/32', 'Description': 'foo'}]),
+                    ('udp', 91, 91, [{'CidrIp': '0/32', 'Description': 'foo'}]),
+            ]
+        ]
+
+        new, existing = holepunch.build_ingress_permissions(
+            {'IpPermissions': sg_permissions},
+            '0/32',
+            [(90, 9090)],
+            ['tcp', 'udp'],
+            'bar')
+
+        assert new == [{
+            'IpProtocol': proto,
+            'FromPort': 90,
+            'ToPort': 9090,
+            'IpRanges': [{'CidrIp': '0/32', 'Description': 'bar'}]
+        } for proto in ['tcp', 'udp']]
+
+        assert existing == []
+
+    def test_ignores_existing_ips(self):
+        sg_permissions = [
+            dict(zip(['IpProtocol', 'FromPort', 'ToPort', 'IpRanges'], vals))
+            for vals in [
+                    ('tcp', 90, 9090, [{'CidrIp': '0/32', 'Description': 'foo'}]),
+                    ('udp', 90, 9090, [{'CidrIp': '0/32', 'Description': 'foo'}]),
+            ]
+        ]
+
+        new, existing = holepunch.build_ingress_permissions(
+            {'IpPermissions': sg_permissions},
+            '0/32',
+            [(90, 9090), (91,91)],
+            {'tcp'},
+            'bar')
+
+        assert new == [{
+            'IpProtocol': 'tcp',
+            'FromPort': 91,
+            'ToPort': 91,
+            'IpRanges': [{'CidrIp': '0/32', 'Description': 'bar'}]
+        }]
+
+        assert existing == [{
+            'IpProtocol': 'tcp',
+            'FromPort': 90,
+            'ToPort': 9090,
+            'IpRanges': [{'CidrIp': '0/32', 'Description': 'bar'}]
+        }]
+
+    def test_ignores_existing_ips_when_some_dont_match(self):
+        sg_permissions = [
+            dict(zip(['IpProtocol', 'FromPort', 'ToPort', 'IpRanges'], vals))
+            for vals in [
+                    ('tcp', 90, 9090, [{'CidrIp': '1/32', 'Description': 'bar'},
+                                       {'CidrIp': '0/32', 'Description': 'foo'}]),
+            ]
+        ]
+
+        new, existing = holepunch.build_ingress_permissions(
+            {'IpPermissions': sg_permissions},
+            '0/32',
+            [(90, 9090)],
+            {'tcp'},
+            'bar')
+
+        assert new == []
+        assert existing == [{
+            'IpProtocol': 'tcp',
+            'FromPort': 90,
+            'ToPort': 9090,
+            'IpRanges': [{'CidrIp': '0/32', 'Description': 'bar'}]
+        }]
