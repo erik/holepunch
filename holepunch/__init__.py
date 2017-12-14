@@ -48,20 +48,18 @@ except NameError:
     pass
 
 
-def find_intended_security_group(ec2_client, group_name):
+def find_intended_security_group(security_groups, group_name):
     '''If there's a typo, try to return the intended security group name'''
-    grps = ec2_client.describe_security_groups()['SecurityGroups']
-
-    if not len(grps):
+    if not len(security_groups):
         return
 
     scores = [
         SequenceMatcher(None, group_name, grp['GroupName']).ratio()
-        for grp in grps
+        for grp in security_groups
     ]
 
     # Find the closest match
-    distances = sorted(zip(scores, grps), key=lambda tpl: tpl[0])
+    distances = sorted(zip(scores, security_groups), key=lambda tpl: tpl[0])
     score, best_match = distances[-1]
 
     if score > 0.35:
@@ -197,7 +195,8 @@ def holepunch(args):
 
     if not groups:
         print('Unknown security group: %s' % group_name)
-        intended = find_intended_security_group(ec2_client, group_name)
+        all_groups = ec2_client.describe_security_groups()['SecurityGroups']
+        intended = find_intended_security_group(all_groups, group_name)
 
         if intended:
             print('Did you mean: "%s"?' % intended)

@@ -29,3 +29,18 @@ class TestPortRanges:
         for port_strings, msg in cases:
             with pytest.raises(ValueError, match=msg):
                 holepunch.parse_port_ranges(port_strings)
+
+
+def test_find_intended_security_group():
+    # list of (security_groups, group_name, expected_output)
+    cases = [
+        (['1', '2', '3', '4', 'pretty close_'], 'pretty_close', 'pretty close_'),
+        ([], 'foo', None),
+        (['1', '2', '3'], 'pretty_far', None)
+    ]
+
+    for groups, name, expected in cases:
+        output = holepunch.find_intended_security_group(
+            [{'GroupName': g} for g in groups], name)
+
+        assert output == expected
