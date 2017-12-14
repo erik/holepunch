@@ -148,7 +148,7 @@ def find_matching_security_groups(ec2_client, name):
     return groups
 
 
-def build_ingress_permissions(security_group, cidr, port_ranges, protocols, comment):
+def build_ingress_permissions(security_group, cidr, port_ranges, protocols, description):
     new_perms, existing_perms = [], []
 
     for proto in protocols:
@@ -157,7 +157,7 @@ def build_ingress_permissions(security_group, cidr, port_ranges, protocols, comm
                 'IpProtocol': proto,
                 'FromPort': from_port,
                 'ToPort': to_port,
-                'IpRanges': [{'CidrIp': cidr, 'Description': comment}]
+                'IpRanges': [{'CidrIp': cidr, 'Description': description}]
             }
 
             # We don't want to (and cannot) duplicate rules
@@ -186,6 +186,15 @@ def build_ingress_permissions(security_group, cidr, port_ranges, protocols, comm
 def holepunch(args):
     group_name = args['GROUP']
 
+    if args['--all']:
+        port_ranges = [(0, 65535)]
+    else:
+        try:
+            port_ranges = parse_port_ranges(args['PORTS'])
+        except ValueError as exc:
+            print('invalid port range: %s' % exc)
+            return False
+
     profile_name = args['--profile']
 
     boto_session = boto3.session.Session(profile_name=profile_name)
@@ -199,13 +208,14 @@ def holepunch(args):
         intended = find_intended_security_group(all_groups, group_name)
 
         if intended:
-            print('Did you mean: "%s"?' % intended)
+            print('\nDid you mean: "%s"?' % intended)
 
         return False
 
     elif len(groups) > 1:
         print('More than one group matches "%s", use group id instead' %
               group_name)
+
         for grp in groups:
             print('- %s %s' % (grp['GroupId'], grp['GroupName']))
 
@@ -213,19 +223,9 @@ def holepunch(args):
 
     group = groups[0]
 
-    if args['--all']:
-        port_ranges = [(0, 65535)]
-    else:
-        try:
-            port_ranges = parse_port_ranges(args['PORTS'])
-        except ValueError as exc:
-            print('invalid port range: %s' % exc)
-            return False
-
     protocols = set()
     cidr = args['--cidr'] or get_local_cidr()
 
-    # TODO: Should this include ICMP?
     if args['--udp']:
         protocols.add('udp')
     if args['--tcp']:
