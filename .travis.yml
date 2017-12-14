@@ -5,7 +5,7 @@ python:
   - "3.6"
 install:
   - python setup.py develop
-  - pip install pytest
+  - pip install pytest mock
 
 script:
   - python -m pytest -v

@@ -1,4 +1,5 @@
 import pytest
+import mock
 
 import holepunch
 
@@ -44,3 +45,27 @@ def test_find_intended_security_group():
             [{'GroupName': g} for g in groups], name)
 
         assert output == expected
+
+
+# mostly to ensure py2 gets bytes right
+def test_get_local_cidr():
+    read_mock = mock.Mock()
+    read_mock.read.return_value = b'foo'
+
+    with mock.patch('holepunch.urlopen', return_value=read_mock):
+        assert holepunch.get_local_cidr() == 'foo/32'
+
+
+def test_find_matching_security_groups():
+    client_mock = mock.Mock()
+    client_mock.describe_security_groups.return_value = {'SecurityGroups': ['bar']}
+
+    output = holepunch.find_matching_security_groups(client_mock, 'foo')
+
+    assert output == ['bar', 'bar']
+
+    for filter_name in ['group-name', 'group-id']:
+        client_mock.describe_security_groups.assert_any_call(Filters=[{
+            'Name': filter_name,
+            'Values': ['foo']
+        }])

@@ -69,7 +69,7 @@ def find_intended_security_group(security_groups, group_name):
 # TODO: There's probably more nuance to this.
 def get_local_cidr():
     # AWS VPCs don't support IPv6 (wtf...) so force IPv4
-    external_ip = urlopen("http://ipv4.icanhazip.com").read().strip().decode('utf-8')
+    external_ip = urlopen("http://ipv4.icanhazip.com").read().decode('utf-8').strip()
     return '%s/32' % external_ip
 
 
