@@ -26,6 +26,7 @@ import atexit
 from difflib import SequenceMatcher
 import json
 import signal
+import sys
 
 try:
     # For Python 3.0 and later
@@ -63,11 +64,8 @@ def find_intended_security_group(ec2_client, group_name):
     distances = sorted(zip(scores, grps), key=lambda tpl: tpl[0])
     score, best_match = distances[-1]
 
-    # TODO: Tune this.
-    if score < 0.35:
-        return
-
-    print('\nDid you mean: %s?' % best_match['GroupName'])
+    if score > 0.35:
+        return best_match['GroupName']
 
 
 # TODO: There's probably more nuance to this.
@@ -78,6 +76,7 @@ def get_local_cidr():
 
 
 def parse_port_ranges(port_strings):
+    ''' ['80-8082', '443', '22-29'] -> [(80, 8082), (443, 443), (22, 29)] '''
     ranges = []
 
     for s in port_strings:
@@ -136,62 +135,23 @@ def confirm(message):
     return resp.lower() in ['yes', 'y']
 
 
-def holepunch(args):
-    group_name = args['GROUP']
-
-    profile_name = args['--profile']
-
-    boto_session = boto3.session.Session(profile_name=profile_name)
-    ec2_client = boto_session.client('ec2')
-
+def find_matching_security_groups(ec2_client, name):
     groups = []
 
     # Try to lookup based on group name and group id
     for filter_name in ['group-name', 'group-id']:
         matches = ec2_client.describe_security_groups(Filters=[{
             'Name': filter_name,
-            'Values': [group_name]
+            'Values': [name]
         }])
 
         groups.extend(matches['SecurityGroups'])
 
-    if not groups:
-        print('Unknown security group: %s' % group_name)
-        return find_intended_security_group(ec2_client, group_name)
+    return groups
 
-    elif len(groups) > 1:
-        print('More than one group matches "%s", use group id instead' %
-              group_name)
-        for grp in groups:
-            print('- %s %s' % (grp['GroupId'], grp['GroupName']))
-        return
 
-    group = groups[0]
-
-    if args['--all']:
-        port_ranges = [(0, 65535)]
-    else:
-        try:
-            port_ranges = parse_port_ranges(args['PORTS'])
-        except ValueError as exc:
-            print('invalid port range: %s' % exc)
-            return
-
-    protocols = set()
-    cidr = args['--cidr'] or get_local_cidr()
-
-    # TODO: Should this include ICMP?
-    if args['--udp']:
-        protocols.add('udp')
-    if args['--tcp']:
-        protocols.add('tcp')
-
-    # Default to TCP
-    if not protocols:
-        protocols.add('tcp')
-
-    ip_perms = []
-    existing_perms = []
+def build_ingress_permissions(security_group, cidr, port_ranges, protocols, comment):
+    new_perms, existing_perms = [], []
 
     for proto in protocols:
         for from_port, to_port in port_ranges:
@@ -199,14 +159,11 @@ def holepunch(args):
                 'IpProtocol': proto,
                 'FromPort': from_port,
                 'ToPort': to_port,
-                'IpRanges': [{
-                    'CidrIp': cidr,
-                    'Description': args['--comment']
-                }]
+                'IpRanges': [{'CidrIp': cidr, 'Description': comment}]
             }
 
             # We don't want to (and cannot) duplicate rules
-            for perm in group['IpPermissions']:
+            for perm in security_group['IpPermissions']:
 
                 # These keys are checked for simple equality, if they're not
                 # all the same no need to check IpRanges.
@@ -223,25 +180,82 @@ def holepunch(args):
                     break
 
             else:
-                ip_perms.append(permission)
+                new_perms.append(permission)
 
-    to_remove = ip_perms.copy()
+    return new_perms, existing_perms
+
+
+def holepunch(args):
+    group_name = args['GROUP']
+
+    profile_name = args['--profile']
+
+    boto_session = boto3.session.Session(profile_name=profile_name)
+    ec2_client = boto_session.client('ec2')
+
+    groups = find_matching_security_groups(ec2_client, group_name)
+
+    if not groups:
+        print('Unknown security group: %s' % group_name)
+        intended = find_intended_security_group(ec2_client, group_name)
+
+        if intended:
+            print('Did you mean: "%s"?' % intended)
+
+        return False
+
+    elif len(groups) > 1:
+        print('More than one group matches "%s", use group id instead' %
+              group_name)
+        for grp in groups:
+            print('- %s %s' % (grp['GroupId'], grp['GroupName']))
+
+        return False
+
+    group = groups[0]
+
+    if args['--all']:
+        port_ranges = [(0, 65535)]
+    else:
+        try:
+            port_ranges = parse_port_ranges(args['PORTS'])
+        except ValueError as exc:
+            print('invalid port range: %s' % exc)
+            return False
+
+    protocols = set()
+    cidr = args['--cidr'] or get_local_cidr()
+
+    # TODO: Should this include ICMP?
+    if args['--udp']:
+        protocols.add('udp')
+    if args['--tcp']:
+        protocols.add('tcp')
+
+    # Default to TCP
+    if not protocols:
+        protocols.add('tcp')
+
+    new_perms, existing_perms = build_ingress_permissions(
+        group, cidr, port_ranges, protocols, args['--comment'])
+
+    to_remove = new_perms.copy()
     if args['--remove-existing']:
         to_remove.extend(existing_perms)
 
-    if not ip_perms and not to_remove:
+    if not new_perms and not to_remove:
         print('No changes to make.')
-        return
+        return True
 
     print('Changes to be made to: {group_name} [{group_id}]'
           '\n{hr}\n{perms}\n{hr}'.format(
               hr='='*60, group_name=group['GroupName'],
               group_id=group['GroupId'],
-              perms=json.dumps(ip_perms, indent=4)))
+              perms=json.dumps(new_perms, indent=4)))
 
     if not args['--yes'] and not confirm('Apply security group ingress?'):
         print('Okay, aborting...')
-        return
+        return True
 
     # Ensure that we revert ingress rules when the program exits
     atexit.register(revert_ingress_rules,
@@ -249,8 +263,8 @@ def holepunch(args):
                     group=group,
                     ip_permissions=to_remove)
 
-    if ip_perms:
-        apply_ingress_rules(ec2_client, group, ip_perms)
+    if new_perms:
+        apply_ingress_rules(ec2_client, group, new_perms)
 
     print('Ctrl-c to revert')
 
@@ -262,10 +276,15 @@ def holepunch(args):
     # Sleep until we receive a SIGINT
     signal.pause()
 
+    return True
+
 
 def main():
     args = docopt(__doc__, version=__version__)
-    holepunch(args)
+    success = holepunch(args)
+
+    if not success:
+        sys.exit(1)
 
 
 if __name__ == '__main__':
