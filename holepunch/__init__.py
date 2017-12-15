@@ -238,7 +238,9 @@ def holepunch(args):
     new_perms, existing_perms = build_ingress_permissions(
         group, cidr, port_ranges, protocols, args['--comment'])
 
-    to_remove = new_perms.copy()
+    # At exit, we want to remove everything we added (plus everything
+    # that was already there, if using --remove-existing)
+    to_remove = new_perms[:]
     if args['--remove-existing']:
         to_remove.extend(existing_perms)
 
