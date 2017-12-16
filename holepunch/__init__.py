@@ -10,6 +10,7 @@ Arguments:
 
 Options:
   --all                  Open ports 0-65535.
+  -c --command=CMD       Apply changes only while command is running.
   --cidr ADDR            Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
   -d --description=DESC  Description of security group ingress [default: holepunch].
   -h --help              Show this screen.
@@ -26,6 +27,7 @@ import atexit
 from difflib import SequenceMatcher
 import json
 import signal
+import subprocess
 import sys
 
 try:
@@ -267,15 +269,21 @@ def holepunch(args):
     if new_perms:
         apply_ingress_rules(ec2_client, group, new_perms)
 
-    print('Ctrl-c to revert')
+    command = args['--command']
+    if command is not None:
+        print('Rules will revert when `%s` terminates.' % command)
 
-    # Make sure we have a chance to clean up the security group rules gracefully
-    # by ignoring common signals.
-    for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
-        signal.signal(sig, lambda _1, _2: None)
+        return subprocess.call(command, shell=True) == 0
+    else:
+        print('Ctrl-c to revert')
 
-    # Sleep until we receive a SIGINT
-    signal.pause()
+        # Make sure we have a chance to clean up the security group rules gracefully
+        # by ignoring common signals.
+        for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
+            signal.signal(sig, lambda _1, _2: None)
+
+        # Sleep until we receive a SIGINT
+        signal.pause()
 
     return True
 

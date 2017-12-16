@@ -36,6 +36,13 @@ Modifying a security group using its id also works:
 holepunch sg-62153838 443 --tcp
 ```
 
+Adding security group rules and then `ssh`ing to a host. Rules will be
+reverted when SSH connection ends.
+
+```
+holepunch foo_bar 22 --command "ssh bastion"
+```
+
 Adding multiple TCP port ranges:
 
 ```
