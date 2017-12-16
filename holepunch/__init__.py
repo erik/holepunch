@@ -9,15 +9,15 @@ Arguments:
   PORTS    List of ports or port ranges (e.g. 8080-8082) to open.
 
 Options:
-  --all                 Open ports 0-65535.
-  -c --comment=TEXT     Description of security group ingress [default: holepunch].
-  --cidr ADDR           Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
-  -h --help             Show this screen.
-  -p --profile=NAME     Use a specific AWS profile, equivalent to setting `AWS_PROFILE=NAME`
-  -r --remove-existing  Remove ingress rules at exit even if they weren't created by holepunch.
-  -t --tcp              Open TCP ports to ingress [default].
-  -u --udp              Open UDP ports to ingress.
-  -y --yes              Don't prompt before writing rules.
+  --all                  Open ports 0-65535.
+  --cidr ADDR            Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
+  -d --description=DESC  Description of security group ingress [default: holepunch].
+  -h --help              Show this screen.
+  -p --profile=NAME      Use a specific AWS profile, equivalent to setting `AWS_PROFILE=NAME`
+  -r --remove-existing   Remove ingress rules at exit even if they weren't created by holepunch.
+  -t --tcp               Open TCP ports to ingress [default].
+  -u --udp               Open UDP ports to ingress.
+  -y --yes               Don't prompt before writing rules.
 '''
 
 from __future__ import print_function
@@ -236,7 +236,7 @@ def holepunch(args):
         protocols.add('tcp')
 
     new_perms, existing_perms = build_ingress_permissions(
-        group, cidr, port_ranges, protocols, args['--comment'])
+        group, cidr, port_ranges, protocols, args['--description'])
 
     # At exit, we want to remove everything we added (plus everything
     # that was already there, if using --remove-existing)
