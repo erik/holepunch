@@ -10,7 +10,7 @@ Arguments:
 
 Options:
   --all                  Open ports 0-65535.
-  -c --command=CMD       Apply changes only while command is running.
+  -c --command=CMD       Run a command after applying ingress rules, reverting after exit.
   --cidr ADDR            Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
   -d --description=DESC  Description of security group ingress [default: holepunch].
   -h --help              Show this screen.

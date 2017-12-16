@@ -36,7 +36,7 @@ Modifying a security group using its id also works:
 holepunch sg-62153838 443 --tcp
 ```
 
-Apply security group rules and then `ssh` to a host. Rules will be
+Apply security group rules and then `ssh` into a host. Rules will be
 reverted when SSH connection ends.
 
 ```
