@@ -10,6 +10,9 @@ rules will be reverted when you are done.
 
 After running `holepunch`, just hit `Ctrl-c` to clear out the modified rules.
 
+You can also run `holepunch` only for the duration of a shell command with
+`--command`.
+
 By default, `holepunch` will refuse to remove rules that existed before it
 was run. This can be toggled with the `--remove-existing` flag.
 
@@ -34,6 +37,13 @@ Modifying a security group using its id also works:
 
 ```
 holepunch sg-62153838 443 --tcp
+```
+
+Apply security group rules and then `ssh` into a host. Rules will be
+reverted when SSH connection ends.
+
+```
+holepunch foo_bar 22 --command "ssh bastion"
 ```
 
 Adding multiple TCP port ranges:

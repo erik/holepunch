@@ -9,15 +9,16 @@ Arguments:
   PORTS    List of ports or port ranges (e.g. 8080-8082) to open.
 
 Options:
-  --all                 Open ports 0-65535.
-  -c --comment=TEXT     Description of security group ingress [default: holepunch].
-  --cidr ADDR           Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
-  -h --help             Show this screen.
-  -p --profile=NAME     Use a specific AWS profile, equivalent to setting `AWS_PROFILE=NAME`
-  -r --remove-existing  Remove ingress rules at exit even if they weren't created by holepunch.
-  -t --tcp              Open TCP ports to ingress [default].
-  -u --udp              Open UDP ports to ingress.
-  -y --yes              Don't prompt before writing rules.
+  --all                  Open ports 0-65535.
+  -c --command=CMD       Run command after applying ingress rules and revert when it exits.
+  --cidr ADDR            Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
+  -d --description=DESC  Description of security group ingress [default: holepunch].
+  -h --help              Show this screen.
+  -p --profile=NAME      Use a specific AWS profile, equivalent to setting `AWS_PROFILE=NAME`
+  -r --remove-existing   Remove ingress rules at exit even if they weren't created by holepunch.
+  -t --tcp               Open TCP ports to ingress [default].
+  -u --udp               Open UDP ports to ingress.
+  -y --yes               Don't prompt before writing rules.
 '''
 
 from __future__ import print_function
@@ -26,6 +27,7 @@ import atexit
 from difflib import SequenceMatcher
 import json
 import signal
+import subprocess
 import sys
 
 try:
@@ -236,7 +238,7 @@ def holepunch(args):
         protocols.add('tcp')
 
     new_perms, existing_perms = build_ingress_permissions(
-        group, cidr, port_ranges, protocols, args['--comment'])
+        group, cidr, port_ranges, protocols, args['--description'])
 
     # At exit, we want to remove everything we added (plus everything
     # that was already there, if using --remove-existing)
@@ -267,15 +269,21 @@ def holepunch(args):
     if new_perms:
         apply_ingress_rules(ec2_client, group, new_perms)
 
-    print('Ctrl-c to revert')
+    command = args['--command']
+    if command is not None:
+        print('Rules will revert when `%s` terminates.' % command)
 
-    # Make sure we have a chance to clean up the security group rules gracefully
-    # by ignoring common signals.
-    for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
-        signal.signal(sig, lambda _1, _2: None)
+        return subprocess.call(command, shell=True) == 0
+    else:
+        print('Ctrl-c to revert')
 
-    # Sleep until we receive a SIGINT
-    signal.pause()
+        # Make sure we have a chance to clean up the security group
+        # rules gracefully by ignoring common signals.
+        for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
+            signal.signal(sig, lambda _1, _2: None)
+
+        # Sleep until we receive a SIGINT
+        signal.pause()
 
     return True
 
