@@ -10,7 +10,7 @@ Arguments:
 
 Options:
   --all                  Open ports 0-65535.
-  -c --command=CMD       Run a command after applying ingress rules, reverting after exit.
+  -c --command=CMD       Run command after applying ingress rules and revert when it exits.
   --cidr ADDR            Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
   -d --description=DESC  Description of security group ingress [default: holepunch].
   -h --help              Show this screen.
@@ -277,8 +277,8 @@ def holepunch(args):
     else:
         print('Ctrl-c to revert')
 
-        # Make sure we have a chance to clean up the security group rules gracefully
-        # by ignoring common signals.
+        # Make sure we have a chance to clean up the security group
+        # rules gracefully by ignoring common signals.
         for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
             signal.signal(sig, lambda _1, _2: None)
 
