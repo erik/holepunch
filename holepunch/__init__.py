@@ -25,6 +25,7 @@ from __future__ import print_function
 
 import atexit
 from difflib import SequenceMatcher
+import ipaddress
 import json
 import signal
 import subprocess
@@ -68,11 +69,13 @@ def find_intended_security_group(security_groups, group_name):
         return best_match['GroupName']
 
 
-# TODO: There's probably more nuance to this.
-def get_local_cidr():
-    # AWS VPCs don't support IPv6 (wtf...) so force IPv4
-    external_ip = urlopen("http://ipv4.icanhazip.com").read().decode('utf-8').strip()
-    return '%s/32' % external_ip
+def get_external_ip():
+    ip_str = urlopen("http://icanhazip.com").read().decode('utf-8').strip()
+    return ipaddress.ip_address(ip_str)
+
+
+def parse_cidr_expression(cidr_or_ip):
+    return ipaddress.ip_interface(cidr_or_ip)
 
 
 def parse_port_ranges(port_strings):
@@ -158,9 +161,18 @@ def build_ingress_permissions(security_group, cidr, port_ranges, protocols, desc
             permission = {
                 'IpProtocol': proto,
                 'FromPort': from_port,
-                'ToPort': to_port,
-                'IpRanges': [{'CidrIp': cidr, 'Description': description}]
+                'ToPort': to_port
             }
+
+            if cidr.version == 4:
+                permission['IpRanges'] = [
+                    {'CidrIp': str(cidr), 'Description': description}
+                ]
+            elif cidr.version == 6:
+                permission['Ipv6Ranges'] = [
+                    {'CidrIpv6': str(cidr), 'Description': description}
+                ]
+
 
             # We don't want to (and cannot) duplicate rules
             for perm in security_group['IpPermissions']:
@@ -172,12 +184,16 @@ def build_ingress_permissions(security_group, cidr, port_ranges, protocols, desc
                 if not all(perm.get(k) == permission[k] for k in keys):
                     continue
 
-                # For IpRanges, we need to ignore the Description and check if
-                # the CidrIp is the same.
-                if any(ip['CidrIp'] == cidr for ip in perm.get('IpRanges', [])):
-                    existing_perms.append(permission)
-                    print('Not adding existing permission: %s' % json.dumps(permission))
-                    break
+                # For IpRanges / Ipv6Ranges, we need to ignore the Description
+                # and check if the CidrIp is the same.
+                for (cidr_key, range_key) in [('CidrIp', 'IpRanges'),
+                                              ('CidrIpv6', 'Ipv6Ranges')]:
+
+                    ip_ranges = perm.get(range_key, [])
+                    if any(ip[cidr_key] == cidr for ip in ip_ranges):
+                        existing_perms.append(permission)
+                        print('Not adding existing permission: %s' % json.dumps(permission))
+                        break
 
             else:
                 new_perms.append(permission)
@@ -226,7 +242,13 @@ def holepunch(args):
     group = groups[0]
 
     protocols = set()
-    cidr = args['--cidr'] or get_local_cidr()
+
+    if args['--cidr']:
+        cidr_str = args['--cidr'].decode('utf-8')
+    else:
+        cidr_str = get_external_ip()
+
+    cidr = parse_cidr_expression(cidr_str)
 
     if args['--udp']:
         protocols.add('udp')
