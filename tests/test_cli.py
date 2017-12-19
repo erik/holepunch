@@ -158,3 +158,27 @@ class TestBuildIngressPermissions:
             'ToPort': 9090,
             'IpRanges': [{'CidrIp': '1.1.1.1/32', 'Description': 'bar'}]
         }]
+
+    def test_ipv6_support(self):
+        sg_permissions = [
+            dict(zip(['IpProtocol', 'FromPort', 'ToPort', 'Ipv6Ranges'], vals))
+            for vals in [
+                    ('tcp', 90, 9090, [{'CidrIpv6': '1:1:1:1::/32', 'Description': 'bar'},
+                                       {'CidrIpv6': '2:2:2:2::/32', 'Description': 'foo'}]),
+            ]
+        ]
+
+        new, existing = holepunch.build_ingress_permissions(
+            {'IpPermissions': sg_permissions},
+            ipaddress.ip_interface('1:1:1:1::/32'),
+            [(90, 9090)],
+            {'tcp'},
+            'bar')
+
+        assert new == []
+        assert existing == [{
+            'IpProtocol': 'tcp',
+            'FromPort': 90,
+            'ToPort': 9090,
+            'Ipv6Ranges': [{'CidrIpv6': '1:1:1:1::/32', 'Description': 'bar'}]
+        }]
