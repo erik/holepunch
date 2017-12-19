@@ -50,6 +50,10 @@ try:
 except NameError:
     pass
 
+# Hack for Python3
+if sys.version_info.major == 3:
+    unicode = str
+
 
 def find_intended_security_group(security_groups, group_name):
     '''If there's a typo, try to return the intended security group name'''
@@ -174,7 +178,6 @@ def build_ingress_permissions(security_group, cidr, port_ranges, protocols, desc
                     {'CidrIpv6': cidr_str, 'Description': description}
                 ]
 
-
             # We don't want to (and cannot) duplicate rules
             for perm in security_group['IpPermissions']:
 
@@ -244,14 +247,14 @@ def holepunch(args):
 
     group = groups[0]
 
-    protocols = set()
-
     if args['--cidr']:
-        cidr_str = args['--cidr'].decode('utf-8')
+        cidr_str = unicode(args['--cidr'])
     else:
         cidr_str = get_external_ip()
 
     cidr = parse_cidr_expression(cidr_str)
+
+    protocols = set()
 
     if args['--udp']:
         protocols.add('udp')
