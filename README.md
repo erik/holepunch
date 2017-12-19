@@ -56,4 +56,7 @@ Explicitly setting the IP range the rules apply to:
 
 ```
 holepunch foo_bar --cidr=192.168.0.0/16 22 80
+
+# Also works with IPv6 ranges
+holepunch foo_bar --cidr=2001:882f::1/128 443
 ```
