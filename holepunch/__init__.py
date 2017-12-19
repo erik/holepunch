@@ -180,6 +180,7 @@ def build_ingress_permissions(security_group, cidr, port_ranges, protocols, desc
                 'ToPort': to_port
             }
 
+            # AWS uses different keys for IPv4 and IPv6 ranges.
             if cidr.version == 4:
                 permission['IpRanges'] = [
                     {'CidrIp': cidr_str, 'Description': description}
