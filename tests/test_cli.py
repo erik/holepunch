@@ -64,6 +64,14 @@ def test_get_external_ip():
         assert holepunch.get_external_ip() == ipaddress.ip_address('192.168.1.1')
 
 
+def test_get_external_ipv6():
+    read_mock = mock.Mock()
+    read_mock.read.return_value = b'2001:db8::2:1'
+
+    with mock.patch('holepunch.urlopen', return_value=read_mock):
+        assert holepunch.get_external_ip() == ipaddress.ip_address('2001:db8:0:0:0:0:2:1')
+
+
 def test_find_matching_security_groups():
     client_mock = mock.Mock()
     client_mock.describe_security_groups.return_value = {'SecurityGroups': ['bar']}

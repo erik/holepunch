@@ -187,19 +187,17 @@ def build_ingress_permissions(security_group, cidr, port_ranges, protocols, desc
 
                 # For IpRanges / Ipv6Ranges, we need to ignore the Description
                 # and check if the CidrIp is the same.
-                has_existing = False
-                for (cidr_key, range_key) in [('CidrIp', 'IpRanges'),
-                                              ('CidrIpv6', 'Ipv6Ranges')]:
+                if cidr.version == 4:
+                    ip_ranges = perm.get('IpRanges', [])
+                    cidr_key = 'CidrIp'
+                elif cidr.version == 6:
+                    ip_ranges = perm.get('Ipv6Ranges', [])
+                    cidr_key = 'CidrIpv6'
 
-                    ip_ranges = perm.get(range_key, [])
-                    if any(ip[cidr_key] == cidr_str for ip in ip_ranges):
-                        existing_perms.append(permission)
-                        has_existing = True
-                        print('Not adding existing permission: %s' % json.dumps(permission))
-
-                if has_existing:
+                if any(ip[cidr_key] == cidr_str for ip in ip_ranges):
+                    existing_perms.append(permission)
+                    print('Not adding existing permission: %s' % json.dumps(permission))
                     break
-
             else:
                 new_perms.append(permission)
 
