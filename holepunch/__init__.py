@@ -21,10 +21,11 @@ Options:
   -y --yes               Don't prompt before writing rules.
 '''
 
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 
 import atexit
 from difflib import SequenceMatcher
+import ipaddress
 import json
 import signal
 import subprocess
@@ -49,6 +50,10 @@ try:
 except NameError:
     pass
 
+# Hack for Python3
+if sys.version_info.major == 3:
+    unicode = str
+
 
 def find_intended_security_group(security_groups, group_name):
     '''If there's a typo, try to return the intended security group name'''
@@ -68,15 +73,28 @@ def find_intended_security_group(security_groups, group_name):
         return best_match['GroupName']
 
 
-# TODO: There's probably more nuance to this.
-def get_local_cidr():
-    # AWS VPCs don't support IPv6 (wtf...) so force IPv4
-    external_ip = urlopen("http://ipv4.icanhazip.com").read().decode('utf-8').strip()
-    return '%s/32' % external_ip
+def get_external_ip():
+    '''Query external service to find public facing IP address.'''
+    ip_str = urlopen('http://icanhazip.com').read().decode('utf-8').strip()
+    return ipaddress.ip_address(ip_str)
+
+
+def parse_cidr_expression(cidr_or_ip):
+    '''
+    Convert from string or CIDR notation or an Ipv{4,6}Address to
+    Ipv{4,6}Interface.
+    '''
+    return ipaddress.ip_interface(cidr_or_ip)
 
 
 def parse_port_ranges(port_strings):
-    ''' ['80-8082', '443', '22-29'] -> [(80, 8082), (443, 443), (22, 29)] '''
+    '''
+    Convert a list of strings describing port ranges to a list of tuples
+    of (low, high).
+
+    parse_port_range(['80-8082', '443']) == [(80, 8082), (443, 443)]
+    '''
+
     ranges = []
 
     for s in port_strings:
@@ -152,15 +170,25 @@ def find_matching_security_groups(ec2_client, name):
 
 def build_ingress_permissions(security_group, cidr, port_ranges, protocols, description):
     new_perms, existing_perms = [], []
+    cidr_str = str(cidr)
 
     for proto in protocols:
         for from_port, to_port in port_ranges:
             permission = {
                 'IpProtocol': proto,
                 'FromPort': from_port,
-                'ToPort': to_port,
-                'IpRanges': [{'CidrIp': cidr, 'Description': description}]
+                'ToPort': to_port
             }
+
+            # AWS uses different keys for IPv4 and IPv6 ranges.
+            if cidr.version == 4:
+                permission['IpRanges'] = [
+                    {'CidrIp': cidr_str, 'Description': description}
+                ]
+            elif cidr.version == 6:
+                permission['Ipv6Ranges'] = [
+                    {'CidrIpv6': cidr_str, 'Description': description}
+                ]
 
             # We don't want to (and cannot) duplicate rules
             for perm in security_group['IpPermissions']:
@@ -172,13 +200,19 @@ def build_ingress_permissions(security_group, cidr, port_ranges, protocols, desc
                 if not all(perm.get(k) == permission[k] for k in keys):
                     continue
 
-                # For IpRanges, we need to ignore the Description and check if
-                # the CidrIp is the same.
-                if any(ip['CidrIp'] == cidr for ip in perm.get('IpRanges', [])):
+                # For IpRanges / Ipv6Ranges, we need to ignore the Description
+                # and check if the CidrIp is the same.
+                if cidr.version == 4:
+                    ip_ranges = perm.get('IpRanges', [])
+                    cidr_key = 'CidrIp'
+                elif cidr.version == 6:
+                    ip_ranges = perm.get('Ipv6Ranges', [])
+                    cidr_key = 'CidrIpv6'
+
+                if any(ip[cidr_key] == cidr_str for ip in ip_ranges):
                     existing_perms.append(permission)
                     print('Not adding existing permission: %s' % json.dumps(permission))
                     break
-
             else:
                 new_perms.append(permission)
 
@@ -225,8 +259,14 @@ def holepunch(args):
 
     group = groups[0]
 
+    if args['--cidr']:
+        cidr_str = unicode(args['--cidr'])
+    else:
+        cidr_str = get_external_ip()
+
+    cidr = parse_cidr_expression(cidr_str)
+
     protocols = set()
-    cidr = args['--cidr'] or get_local_cidr()
 
     if args['--udp']:
         protocols.add('udp')
