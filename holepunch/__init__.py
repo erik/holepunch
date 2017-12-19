@@ -74,16 +74,27 @@ def find_intended_security_group(security_groups, group_name):
 
 
 def get_external_ip():
-    ip_str = urlopen("http://icanhazip.com").read().decode('utf-8').strip()
+    '''Query external service to find public facing IP address.'''
+    ip_str = urlopen('http://icanhazip.com').read().decode('utf-8').strip()
     return ipaddress.ip_address(ip_str)
 
 
 def parse_cidr_expression(cidr_or_ip):
+    '''
+    Convert from string or CIDR notation or an Ipv{4,6}Address to
+    Ipv{4,6}Interface.
+    '''
     return ipaddress.ip_interface(cidr_or_ip)
 
 
 def parse_port_ranges(port_strings):
-    ''' ['80-8082', '443', '22-29'] -> [(80, 8082), (443, 443), (22, 29)] '''
+    '''
+    Convert a list of strings describing port ranges to a list of tuples
+    of (low, high).
+
+    parse_port_range(['80-8082', '443']) == [(80, 8082), (443, 443)]
+    '''
+
     ranges = []
 
     for s in port_strings:
