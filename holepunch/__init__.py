@@ -21,7 +21,7 @@ Options:
   -y --yes               Don't prompt before writing rules.
 '''
 
-from __future__ import print_function
+from __future__ import print_function, unicode_literals
 
 import atexit
 from difflib import SequenceMatcher
@@ -155,6 +155,7 @@ def find_matching_security_groups(ec2_client, name):
 
 def build_ingress_permissions(security_group, cidr, port_ranges, protocols, description):
     new_perms, existing_perms = [], []
+    cidr_str = str(cidr)
 
     for proto in protocols:
         for from_port, to_port in port_ranges:
@@ -166,11 +167,11 @@ def build_ingress_permissions(security_group, cidr, port_ranges, protocols, desc
 
             if cidr.version == 4:
                 permission['IpRanges'] = [
-                    {'CidrIp': str(cidr), 'Description': description}
+                    {'CidrIp': cidr_str, 'Description': description}
                 ]
             elif cidr.version == 6:
                 permission['Ipv6Ranges'] = [
-                    {'CidrIpv6': str(cidr), 'Description': description}
+                    {'CidrIpv6': cidr_str, 'Description': description}
                 ]
 
 
@@ -186,14 +187,18 @@ def build_ingress_permissions(security_group, cidr, port_ranges, protocols, desc
 
                 # For IpRanges / Ipv6Ranges, we need to ignore the Description
                 # and check if the CidrIp is the same.
+                has_existing = False
                 for (cidr_key, range_key) in [('CidrIp', 'IpRanges'),
                                               ('CidrIpv6', 'Ipv6Ranges')]:
 
                     ip_ranges = perm.get(range_key, [])
-                    if any(ip[cidr_key] == cidr for ip in ip_ranges):
+                    if any(ip[cidr_key] == cidr_str for ip in ip_ranges):
                         existing_perms.append(permission)
+                        has_existing = True
                         print('Not adding existing permission: %s' % json.dumps(permission))
-                        break
+
+                if has_existing:
+                    break
 
             else:
                 new_perms.append(permission)

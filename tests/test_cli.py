@@ -1,7 +1,15 @@
+from __future__ import unicode_literals
+
 import pytest
 import mock
 
+import ipaddress
+
 import holepunch
+
+
+def _str_to_cidr(s):
+    return ipaddress.ip_interface(s)
 
 
 class TestPortRanges:
@@ -48,12 +56,12 @@ def test_find_intended_security_group():
 
 
 # mostly to ensure py2 gets bytes right
-def test_get_local_cidr():
+def test_get_external_ip():
     read_mock = mock.Mock()
-    read_mock.read.return_value = b'foo'
+    read_mock.read.return_value = b'192.168.1.1'
 
     with mock.patch('holepunch.urlopen', return_value=read_mock):
-        assert holepunch.get_local_cidr() == 'foo/32'
+        assert holepunch.get_external_ip() == ipaddress.ip_address('192.168.1.1')
 
 
 def test_find_matching_security_groups():
@@ -76,23 +84,23 @@ class TestBuildIngressPermissions:
         sg_permissions = [
             dict(zip(['IpProtocol', 'FromPort', 'ToPort', 'IpRanges'], vals))
             for vals in [
-                    ('tcp', 90, 90, [{'CidrIp': '0/32', 'Description': 'foo'}]),
-                    ('udp', 91, 91, [{'CidrIp': '0/32', 'Description': 'foo'}]),
+                    ('tcp', 90, 90, [{'CidrIp': '1.1.1.1/32', 'Description': 'foo'}]),
+                    ('udp', 91, 91, [{'CidrIp': '1.1.1.1/32', 'Description': 'foo'}]),
             ]
         ]
 
         new, existing = holepunch.build_ingress_permissions(
             {'IpPermissions': sg_permissions},
-            '0/32',
+            _str_to_cidr('1.1.1.1'),
             [(90, 9090)],
             ['tcp', 'udp'],
             'bar')
-
+        print('existing = %s' % repr(existing))
         assert new == [{
             'IpProtocol': proto,
             'FromPort': 90,
             'ToPort': 9090,
-            'IpRanges': [{'CidrIp': '0/32', 'Description': 'bar'}]
+            'IpRanges': [{'CidrIp': '1.1.1.1/32', 'Description': 'bar'}]
         } for proto in ['tcp', 'udp']]
 
         assert existing == []
@@ -101,14 +109,14 @@ class TestBuildIngressPermissions:
         sg_permissions = [
             dict(zip(['IpProtocol', 'FromPort', 'ToPort', 'IpRanges'], vals))
             for vals in [
-                    ('tcp', 90, 9090, [{'CidrIp': '0/32', 'Description': 'foo'}]),
-                    ('udp', 90, 9090, [{'CidrIp': '0/32', 'Description': 'foo'}]),
+                    ('tcp', 90, 9090, [{'CidrIp': '1.1.1.1/32', 'Description': 'foo'}]),
+                    ('udp', 90, 9090, [{'CidrIp': '1.1.1.1/32', 'Description': 'foo'}]),
             ]
         ]
 
         new, existing = holepunch.build_ingress_permissions(
             {'IpPermissions': sg_permissions},
-            '0/32',
+            _str_to_cidr('1.1.1.1'),
             [(90, 9090), (91,91)],
             {'tcp'},
             'bar')
@@ -117,28 +125,28 @@ class TestBuildIngressPermissions:
             'IpProtocol': 'tcp',
             'FromPort': 91,
             'ToPort': 91,
-            'IpRanges': [{'CidrIp': '0/32', 'Description': 'bar'}]
+            'IpRanges': [{'CidrIp': '1.1.1.1/32', 'Description': 'bar'}]
         }]
 
         assert existing == [{
             'IpProtocol': 'tcp',
             'FromPort': 90,
             'ToPort': 9090,
-            'IpRanges': [{'CidrIp': '0/32', 'Description': 'bar'}]
+            'IpRanges': [{'CidrIp': '1.1.1.1/32', 'Description': 'bar'}]
         }]
 
     def test_ignores_existing_ips_when_some_dont_match(self):
         sg_permissions = [
             dict(zip(['IpProtocol', 'FromPort', 'ToPort', 'IpRanges'], vals))
             for vals in [
-                    ('tcp', 90, 9090, [{'CidrIp': '1/32', 'Description': 'bar'},
-                                       {'CidrIp': '0/32', 'Description': 'foo'}]),
+                    ('tcp', 90, 9090, [{'CidrIp': '1.1.1.1/32', 'Description': 'bar'},
+                                       {'CidrIp': '2.2.2.2/32', 'Description': 'foo'}]),
             ]
         ]
 
         new, existing = holepunch.build_ingress_permissions(
             {'IpPermissions': sg_permissions},
-            '0/32',
+            _str_to_cidr('1.1.1.1'),
             [(90, 9090)],
             {'tcp'},
             'bar')
@@ -148,5 +156,5 @@ class TestBuildIngressPermissions:
             'IpProtocol': 'tcp',
             'FromPort': 90,
             'ToPort': 9090,
-            'IpRanges': [{'CidrIp': '0/32', 'Description': 'bar'}]
+            'IpRanges': [{'CidrIp': '1.1.1.1/32', 'Description': 'bar'}]
         }]
