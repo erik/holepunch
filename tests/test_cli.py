@@ -103,7 +103,7 @@ class TestBuildIngressPermissions:
             [(90, 9090)],
             ['tcp', 'udp'],
             'bar')
-        print('existing = %s' % repr(existing))
+
         assert new == [{
             'IpProtocol': proto,
             'FromPort': 90,
