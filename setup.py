@@ -20,8 +20,7 @@ setup(
     },
     license='MIT',
     install_requires=[
-        'botocore==1.7.48',
-        'boto3==1.4.7',
+        'boto3==1.5.6',
         'docopt==0.6.2',
         # Backport for python2.7
         'ipaddress==1.0.19'
