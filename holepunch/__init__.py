@@ -9,9 +9,11 @@ Arguments:
   PORTS    List of ports or port ranges (e.g. 8080-8082) to open.
 
 Options:
+  -4                     Use external IPv4 address (useful in dualstack situations).
+  -6                     Use external IPv6 address.
   --all                  Open ports 0-65535.
   -c --command=CMD       Run command after applying ingress rules and revert when it exits.
-  --cidr ADDR            Address range (CIDR notation) ingress applies to [defaults to external_ip/32]
+  --cidr ADDR            Address range (CIDR notation) ingress applies to [defaults to external_ip]
   -d --description=DESC  Description of security group ingress [default: holepunch].
   -h --help              Show this screen.
   -p --profile=NAME      Use a specific AWS profile, equivalent to setting `AWS_PROFILE=NAME`
@@ -73,9 +75,15 @@ def find_intended_security_group(security_groups, group_name):
         return best_match['GroupName']
 
 
-def get_external_ip():
+def get_external_ip(proto=None):
     '''Query external service to find public facing IP address.'''
-    ip_str = urlopen('http://icanhazip.com').read().decode('utf-8').strip()
+
+    url = {
+        4: 'http://ipv4.icanhazip.com',
+        6: 'http://ipv6.icanhazip.com'
+    }.get(proto, 'http://icanhazip.com')
+
+    ip_str = urlopen(url).read().decode('utf-8').strip()
     return ipaddress.ip_address(ip_str)
 
 
@@ -262,7 +270,13 @@ def holepunch(args):
     if args['--cidr']:
         cidr_str = unicode(args['--cidr'])
     else:
-        cidr_str = get_external_ip()
+        proto = None
+        if args['-4']:
+            proto = 4
+        elif args['-6']:
+            proto = 6
+
+        cidr_str = get_external_ip(proto)
 
     cidr = parse_cidr_expression(cidr_str)
 
