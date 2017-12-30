@@ -76,7 +76,10 @@ def find_intended_security_group(security_groups, group_name):
 
 
 def get_external_ip(proto=None):
-    '''Query external service to find public facing IP address.'''
+    '''
+    Query external service to find public facing IP address.
+    Optional `proto` argument specifies whether to return IPv4 or IPv6 address.
+    '''
 
     url = {
         4: 'http://ipv4.icanhazip.com',
