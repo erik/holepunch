@@ -33,28 +33,15 @@ import signal
 import subprocess
 import sys
 
-try:
-    # For Python 3.0 and later
-    from urllib.request import urlopen
-except ImportError:
-    # Fall back to Python 2's urllib2
-    from urllib2 import urlopen
-
 import boto3
 from docopt import docopt
 
+# Python 2/3 compatibility.
+import six
+from six.moves import input
+from six.moves.urllib.request import urlopen
+
 from holepunch.version import __version__
-
-
-# Hack for Python2
-try:
-    input = raw_input
-except NameError:
-    pass
-
-# Hack for Python3
-if sys.version_info.major == 3:
-    unicode = str
 
 
 def find_intended_security_group(security_groups, group_name):
@@ -271,7 +258,7 @@ def holepunch(args):
     group = groups[0]
 
     if args['--cidr']:
-        cidr_str = unicode(args['--cidr'])
+        cidr_str = six.u(args['--cidr'])
     else:
         proto = None
         if args['-4']:
