@@ -22,6 +22,7 @@ setup(
     install_requires=[
         'boto3==1.5.6',
         'docopt==0.6.2',
+        'six==1.11.0',
         # Backport for python2.7
         'ipaddress==1.0.19'
     ]
