@@ -1,4 +1,4 @@
-'''Punches holes in your security.
+"""Punches holes in your security.
 
 Usage:
   holepunch [options] GROUP (PORTS... | --all)
@@ -21,7 +21,9 @@ Options:
   -t --tcp               Open TCP ports to ingress [default].
   -u --udp               Open UDP ports to ingress.
   -y --yes               Don't prompt before writing rules.
-'''
+  -v MODE                Verbose mode. Causes holepunch to print debugging messages about its progress.
+                         The maximum is 2. [default: 2]
+"""
 
 from __future__ import print_function, unicode_literals
 
@@ -42,6 +44,12 @@ from six.moves import input
 from six.moves.urllib.request import urlopen
 
 from holepunch.version import __version__
+
+
+def log(msg, level=2, **kwargs):
+    """Print a message if verbosity higher then 0"""
+    if level <= verbosity:
+        print(msg, **kwargs)
 
 
 def find_intended_security_group(security_groups, group_name):
@@ -120,18 +128,21 @@ def parse_port_ranges(port_strings):
 
 
 def apply_ingress_rules(ec2_client, group, ip_permissions):
-    print('Applying rules... ', end='')
+    log('Applying rules to: {group_name} [{group_id}] ... '.format(
+        group_name=group['GroupName'],
+        group_id=group['GroupId']
+    ), level=1, end='')
 
     ec2_client.authorize_security_group_ingress(**{
         'GroupId': group['GroupId'],
         'IpPermissions': ip_permissions
     })
 
-    print('Done')
+    log('Done', level=1)
 
 
 def revert_ingress_rules(boto_args, group, ip_permissions):
-    print('Reverting rules... ', end='')
+    log('Reverting rules... ', level=1, end='')
 
     # Create a new boto session instead of reusing existing one, which
     # may have expired while we were asleep.
@@ -143,7 +154,7 @@ def revert_ingress_rules(boto_args, group, ip_permissions):
         'IpPermissions': ip_permissions,
     })
 
-    print('Done')
+    log('Done', level=1)
 
 
 def confirm(message):
@@ -209,7 +220,7 @@ def build_ingress_permissions(security_group, cidr, port_ranges, protocols, desc
 
                 if any(ip[cidr_key] == cidr_str for ip in ip_ranges):
                     existing_perms.append(permission)
-                    print('Not adding existing permission: %s' % json.dumps(permission))
+                    log('Not adding existing permission: %s' % json.dumps(permission))
                     break
             else:
                 new_perms.append(permission)
@@ -294,8 +305,8 @@ def holepunch(args):
         print('No changes to make.')
         return True
 
-    print('Changes to be made to: {group_name} [{group_id}]'
-          '\n{hr}\n{perms}\n{hr}'.format(
+    log('Changes to be made to: {group_name} [{group_id}]'
+        '\n{hr}\n{perms}\n{hr}'.format(
               hr='='*60, group_name=group['GroupName'],
               group_id=group['GroupId'],
               perms=json.dumps(new_perms, indent=4)))
@@ -315,7 +326,7 @@ def holepunch(args):
 
     command = args['--command']
     if command is not None:
-        print('Rules will revert when `%s` terminates.' % command)
+        log('Rules will revert when `%s` terminates.' % command)
 
         return subprocess.call(command, shell=True) == 0
     else:
@@ -332,13 +343,10 @@ def holepunch(args):
     return True
 
 
-def main():
+if __name__ == '__main__':
     args = docopt(__doc__, version=__version__)
+    verbosity = int(args['-v'])
     success = holepunch(args)
 
     if not success:
         sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
