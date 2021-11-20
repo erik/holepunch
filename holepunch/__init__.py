@@ -46,6 +46,9 @@ from six.moves.urllib.request import urlopen
 from holepunch.version import __version__
 
 
+verbosity = 2
+
+
 def log(msg, level=2, **kwargs):
     """Print a message if verbosity higher then 0"""
     if level <= verbosity:
@@ -328,6 +331,14 @@ def holepunch(args):
     if command is not None:
         log('Rules will revert when `%s` terminates.' % command)
 
+        # noinspection PyUnusedLocal
+        def terminate(num, frame):
+            print("\nTerminate signal received.")
+            sys.exit(0)
+
+        for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
+            signal.signal(sig, terminate)
+
         return subprocess.call(command, shell=True) == 0
     else:
         print('Ctrl-c to revert')
@@ -343,10 +354,17 @@ def holepunch(args):
     return True
 
 
-if __name__ == '__main__':
+def main():
+    global verbosity
+
     args = docopt(__doc__, version=__version__)
     verbosity = int(args['-v'])
+
     success = holepunch(args)
 
     if not success:
         sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
