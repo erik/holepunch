@@ -310,6 +310,20 @@ def holepunch(args):
                     group=group,
                     ip_permissions=to_remove)
 
+    # Make sure we have a chance to clean up the security group
+    # rules gracefully by ignoring common signals.
+    def terminate(num, frame):
+        print("\nTerminate signal received.")
+
+        # Terminating gracefully subprocess, so it will not screw parent shell
+        if command is not None:
+            process.terminate()
+
+        sys.exit((num, 0)[num == signal.SIGINT])
+
+    for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
+        signal.signal(sig, terminate)
+
     if new_perms:
         apply_ingress_rules(ec2_client, group, new_perms)
 
@@ -317,14 +331,10 @@ def holepunch(args):
     if command is not None:
         print('Rules will revert when `%s` terminates.' % command)
 
-        return subprocess.call(command, shell=True) == 0
+        process = subprocess.Popen(command, shell=True)
+        return process.wait() == 0
     else:
         print('Ctrl-c to revert')
-
-        # Make sure we have a chance to clean up the security group
-        # rules gracefully by ignoring common signals.
-        for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
-            signal.signal(sig, lambda _1, _2: None)
 
         # Sleep until we receive a SIGINT
         signal.pause()
