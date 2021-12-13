@@ -1,5 +1,4 @@
 # holepunch 
-[![Build Status](https://travis-ci.org/erik/holepunch.svg?branch=master)](https://travis-ci.org/erik/holepunch)
 
 Punch holes in your AWS account security.
 
