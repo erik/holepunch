@@ -23,8 +23,6 @@ Options:
   -y --yes               Don't prompt before writing rules.
 '''
 
-from __future__ import print_function, unicode_literals
-
 import atexit
 from difflib import SequenceMatcher
 import ipaddress
@@ -32,14 +30,10 @@ import json
 import signal
 import subprocess
 import sys
+from urllib.request import urlopen
 
 import boto3
 from docopt import docopt
-
-# Python 2/3 compatibility.
-import six
-from six.moves import input
-from six.moves.urllib.request import urlopen
 
 from holepunch.version import __version__
 
@@ -258,7 +252,7 @@ def holepunch(args):
     group = groups[0]
 
     if args['--cidr']:
-        cidr_str = six.u(args['--cidr'])
+        cidr_str = args['--cidr']
     else:
         proto = None
         if args['-4']:
