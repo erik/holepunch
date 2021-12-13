@@ -22,5 +22,8 @@ setup(
     install_requires=[
         'boto3==1.20.2',
         'docopt==0.6.2',
+    ],
+    classifiers=[
+        'Programming Language :: Python :: 3 :: Only',
     ]
 )
