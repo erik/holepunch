@@ -1,4 +1,4 @@
-# holepunch 
+# holepunch
 
 Punch holes in your AWS account security.
 
@@ -9,7 +9,7 @@ set up.
 This is really bad practice, but `holepunch` will make sure that security group
 rules will be reverted when you are done.
 
-After running `holepunch`, just hit `Ctrl-c` to clear out the modified rules.
+After running `holepunch`, just hit `^D` to clear out the modified rules.
 
 You can also run `holepunch` only for the duration of a shell command with
 `--command`.
@@ -23,7 +23,9 @@ was run. This can be toggled with the `--remove-existing` flag.
 pip install holepunch
 ```
 
-AWS credentials can be set up in any of the places that [Boto3 knows to look.](http://boto3.readthedocs.io/en/latest/guide/configuration.html)
+AWS credentials can be set up in any of the places that [Boto3 knows
+to
+look.](http://boto3.readthedocs.io/en/latest/guide/configuration.html)
 
 ## Examples
 

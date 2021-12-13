@@ -306,34 +306,29 @@ def holepunch(args):
 
     # Make sure we have a chance to clean up the security group
     # rules gracefully by ignoring common signals.
-    def terminate(num, frame):
-        print("\nTerminate signal received.")
+    def signal_handler(sig_num, proc):
+        print(f"\nSignal received: {sig_num}")
 
-        # Terminating gracefully subprocess, so it will not screw parent shell
-        if command is not None:
-            process.terminate()
-
-        sys.exit((num, 0)[num == signal.SIGINT])
-
-    for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
-        signal.signal(sig, terminate)
+        # Received a signal while subprocess was still running, terminate.
+        if proc.poll() is None:
+            proc.terminate()
 
     if new_perms:
         apply_ingress_rules(ec2_client, group, new_perms)
 
-    command = args['--command']
-    if command is not None:
-        print('Rules will revert when `%s` terminates.' % command)
-
-        process = subprocess.Popen(command, shell=True)
-        return process.wait() == 0
+    command = args['--command'] or 'cat'
+    if args['--command'] is not None:
+        print(f'Rules will revert when `{command}` terminates.')
     else:
-        print('Ctrl-c to revert')
+        print('^D to revert')
 
-        # Sleep until we receive a SIGINT
-        signal.pause()
+    proc = subprocess.Popen(command, shell=True)
 
-    return True
+    for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGHUP]:
+        signal.signal(sig, lambda sig_num, _frame: signal_handler(sig_num, proc))
+
+    # Sleep until we receive a SIGINT
+    return proc.wait() == 0
 
 
 def main():
