@@ -15,7 +15,9 @@ You can also run `holepunch` only for the duration of a shell command with
 `--command`.
 
 By default, `holepunch` will refuse to remove rules that existed before it
-was run. This can be toggled with the `--remove-existing` flag.
+was run. This can be toggled with the `--remove-existing` flag. Holepunch
+will only remove rules that match the provided arguments. Eg source, port,
+protocol and description must all match or the rule will not be removed.
 
 ## Installation
 
